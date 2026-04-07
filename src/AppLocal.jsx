@@ -259,7 +259,7 @@ function LoginScreen({ onLogin, onRegister }) {
             Utforsk appen som elev eller lærer med ferdig eksempeldata. Helt isolert – påvirker ingen ekte brukere.
           </p>
           <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            {[{ role: "student", emoji: "🧑‍💼", label: "Elev", name: "Kari Nordmann" }, { role: "teacher", emoji: "👩‍🏫", label: "Lærer", name: "Ola Hansen" }].map(d => (
+            {[{ role: "student", emoji: "🧑", label: "Elev", name: "Kari Nordmann" }, { role: "teacher", emoji: "👩", label: "Lærer", name: "Ola Hansen" }].map(d => (
               <button key={d.role} onClick={() => {
                 const db = getDB();
                 const u = Object.values(db.users).find(u => u.role === d.role);
@@ -322,7 +322,7 @@ function RegisterScreen({ onLogin, onBack }) {
       <button style={S.backBtn} onClick={onBack}>← Tilbake</button>
       <div style={S.authLogo}>🎓</div><h1 style={S.authTitle}>Opprett konto</h1><p style={S.authSub}>Hvem er du?</p>
       <div style={S.roleRow}>
-        {[{ v: "student", e: "🧑‍💼", l: "Elev" }, { v: "teacher", e: "👩‍🏫", l: "Lærer" }].map(r => (
+        {[{ v: "student", e: "🧑", l: "Elev" }, { v: "teacher", e: "👩", l: "Lærer" }].map(r => (
           <button key={r.v} onClick={() => setRole(r.v)} style={{ ...S.roleCard, ...(role === r.v ? S.roleCardActive : {}) }}>
             <span style={{ fontSize: 36 }}>{r.e}</span><span style={{ fontWeight: 700 }}>{r.l}</span>
           </button>
@@ -335,7 +335,7 @@ function RegisterScreen({ onLogin, onBack }) {
   return (
     <div style={S.authBg}><div style={S.authCard}>
       <button style={S.backBtn} onClick={() => setStep(1)}>← Tilbake</button>
-      <div style={S.authLogo}>{role === "teacher" ? "👩‍🏫" : "🧑‍💼"}</div>
+      <div style={S.authLogo}>{role === "teacher" ? "👩" : "🧑"}</div>
       <h1 style={S.authTitle}>{role === "teacher" ? "Ny lærer" : "Ny elev"}</h1>
       <form onSubmit={submit} style={S.form}>
         <input style={S.input} placeholder="Fullt navn" value={name} onChange={e => setName(e.target.value)} required />
@@ -952,7 +952,7 @@ function TeacherDashboard({ user, onLogout }) {
   return (
     <div style={S.appRoot}>
       <header style={S.header}>
-        <div><div style={S.appTitle}>Lærerdashbord 👩‍🏫</div><div style={S.appSub}>{user.name} · {user.school}</div></div>
+        <div><div style={S.appTitle}>Lærerdashbord 👩</div><div style={S.appSub}>{user.name} · {user.school}</div></div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 10, color: "#cbd5e1", fontWeight: 600 }}>v{APP_VERSION}</span>
           <button style={S.iconBtn} onClick={onLogout}>🚪</button>
