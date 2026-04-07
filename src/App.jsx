@@ -1,6 +1,9 @@
 import { lazy, Suspense } from 'react'
 
+const isDemo = new URLSearchParams(window.location.search).get('demo') === '1'
+
 const hasSupabase =
+  !isDemo &&
   import.meta.env.VITE_SUPABASE_URL &&
   import.meta.env.VITE_SUPABASE_URL !== 'https://din-prosjekt-id.supabase.co'
 
