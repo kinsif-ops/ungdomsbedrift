@@ -70,13 +70,19 @@ const PHASES = [
   },
   {
     id: "drift", label: "Drift", emoji: "⚙️", color: "#A855F7", light: "#FAF5FF", border: "#D8B4FE",
+    weeklyTasks: [
+      { text: "Skriv ukereferat", info: "Skriv kort hva dere har gjort denne uken, hva som gikk bra og hva som var utfordrende. Referatet lagres i historikken.", recurring: true },
+      { text: "Oppdater regnskap", info: "Registrer alle inntekter og utgifter fra uken. Husk bilag for alt!", recurring: true },
+      { text: "Post på sosiale medier", info: "Del noe fra bedriften denne uken – produkt, bak-kulissen, kundehistorie eller fremgang.", recurring: true },
+      { text: "Oppdater CRM", info: "Gå gjennom kundeoversikten. Er det noen leads som skal følges opp? Nye kunder å legge til?", recurring: true },
+      { text: "Teammøte gjennomført", info: "Hold ukentlig møte med agenda. Hvem gjør hva neste uke? Skriv kort referat.", recurring: true },
+    ],
     defaultTasks: [
-      { text: "Produser og selg produktet/tjenesten", info: "Kom i gang med produksjon og salg. Sett ukentlige salgsmål og følg opp." },
-      { text: "Før regnskap løpende", info: "Registrer alle inntekter og utgifter fortløpende. Det er mye enklere å holde orden underveis enn å rydde opp på slutten." },
-      { text: "Delta på messer og markeder", info: "UE arrangerer regionale messer. Sjekk 'Hva skjer?' på elevbedrift.no for datoer i din region." },
-      { text: "Oppdater sosiale medier jevnlig", info: "Post minst én gang i uken. Vis frem produktet, bak-kulissen, og kundeanmeldelser." },
-      { text: "Hold teammøter ukentlig", info: "Skriv alltid referat. Sett agenda på forhånd: hva er status, hva skal gjøres denne uken, hvem gjør hva." },
-      { text: "Send faktura til kunder", info: "Alle salg skal dokumenteres. Lag enkle fakturaer i Word/Excel med fakturanummer, dato, beløp og betalingsfrist." },
+      { text: "Skriv ukereferat", info: "Skriv kort hva dere har gjort denne uken, hva som gikk bra og hva som var utfordrende.", recurring: true },
+      { text: "Oppdater regnskap", info: "Registrer alle inntekter og utgifter fra uken. Husk bilag for alt!", recurring: true },
+      { text: "Post på sosiale medier", info: "Del noe fra bedriften denne uken.", recurring: true },
+      { text: "Oppdater CRM", info: "Følg opp leads og kunder i CRM-oversikten.", recurring: true },
+      { text: "Teammøte gjennomført", info: "Hold ukentlig møte og skriv referat.", recurring: true },
     ],
   },
   {
@@ -103,6 +109,14 @@ const CRM_STATUSES = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function genId() { return Math.random().toString(36).substr(2, 9); }
+function getWeekNumber() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+  const week1 = new Date(d.getFullYear(), 0, 4);
+  return 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+}
+function getCurrentYear() { return new Date().getFullYear(); }
 function genCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
@@ -119,13 +133,19 @@ function initCompanyTasks() {
       info: typeof task === "object" ? task.info : null,
       link: typeof task === "object" ? task.link : null,
       isSubmission: typeof task === "object" ? !!task.isSubmission : false,
+      recurring: typeof task === "object" ? !!task.recurring : false,
       done: false,
       doneBy: null,
-      approvedBy: null,  // teacher approval
+      approvedBy: null,
       assignedTo: [],
     }));
   });
   return t;
+}
+
+function initWeeklyLogs() {
+  // weeklyLogs: array of { id, week, year, text, teacherComment, approvedBy, createdAt }
+  return [];
 }
 
 function seedDB() {
@@ -150,9 +170,14 @@ function seedDB() {
   db.users[m2]  = { id: m2,  name: "Per Solberg",   email: "per@demo.no",  password: "demo", role: "student", school: "Vennesla VGS", companyId: c1 };
   db.users[l1]  = { id: l1,  name: "Lars Bakke",    email: "lars@demo.no", password: "demo", role: "student", school: "Vennesla VGS", companyId: c2 };
   db.users[l2]  = { id: l2,  name: "Sara Lie",      email: "sara@demo.no", password: "demo", role: "student", school: "Vennesla VGS", companyId: c3 };
-  db.companies[c1] = { id: c1, code: genCode(), name: "Fryz UB",     school: "Vennesla VGS", createdBy: sid, members: [{ userId: sid, role: "CEO" }, { userId: m2, role: "CFO" }], tasks: t1, crm: crm1, createdAt: Date.now() - 86400000 * 30 };
-  db.companies[c2] = { id: c2, code: genCode(), name: "ScanBack UB", school: "Vennesla VGS", createdBy: l1,  members: [{ userId: l1, role: "CEO" }],  tasks: t2, crm: [], createdAt: Date.now() - 86400000 * 20 };
-  db.companies[c3] = { id: c3, code: genCode(), name: "NordTech UB", school: "Vennesla VGS", createdBy: l2,  members: [{ userId: l2, role: "CMO" }],  tasks: t3, crm: [], createdAt: Date.now() - 86400000 * 10 };
+  const currentWeek = getWeekNumber(); const currentYear = getCurrentYear();
+  const demoLogs = [
+    { id: genId(), week: currentWeek - 2, year: currentYear, text: "Vi hadde et bra møte tirsdag. Kari tok kontakt med tre nye potensielle kunder på Instagram. Per fullførte regnskapet for forrige uke. Vi solgte 12 gorines på skolemarkedet fredag!", teacherComment: "Bra innsats! Husk å føre alle salgene i regnskapet.", approvedBy: "Ola Hansen", createdAt: Date.now() - 86400000 * 14 },
+    { id: genId(), week: currentWeek - 1, year: currentYear, text: "Travelt med prøver denne uken, men vi fikk sendt faktura til Bygger'n AS. Postet bilder fra produksjonen på Instagram – fikk mange likes! Møtet ble litt kort.", teacherComment: null, approvedBy: null, createdAt: Date.now() - 86400000 * 7 },
+  ];
+  db.companies[c1] = { id: c1, code: genCode(), name: "Fryz UB",     school: "Vennesla VGS", createdBy: sid, members: [{ userId: sid, role: "CEO" }, { userId: m2, role: "CFO" }], tasks: t1, crm: crm1, weeklyLogs: demoLogs, createdAt: Date.now() - 86400000 * 30 };
+  db.companies[c2] = { id: c2, code: genCode(), name: "ScanBack UB", school: "Vennesla VGS", createdBy: l1,  members: [{ userId: l1, role: "CEO" }],  tasks: t2, crm: [], weeklyLogs: [], createdAt: Date.now() - 86400000 * 20 };
+  db.companies[c3] = { id: c3, code: genCode(), name: "NordTech UB", school: "Vennesla VGS", createdBy: l2,  members: [{ userId: l2, role: "CMO" }],  tasks: t3, crm: [], weeklyLogs: [], createdAt: Date.now() - 86400000 * 10 };
   return db;
 }
 
@@ -342,6 +367,8 @@ function StudentApp({ user, onLogout }) {
   const [assignModal, setAssignModal] = useState(null);
   const [expandedInfo, setExpandedInfo] = useState(null);
   const [crmModal, setCrmModal] = useState(null);
+  const [weeklyLogText, setWeeklyLogText] = useState("");
+  const [showLogHistory, setShowLogHistory] = useState(false);
 
   const refresh = useCallback(() => setDb(getDB()), []);
   function mutate(fn) { const d = getDB(); fn(d); saveDB(d); refresh(); }
@@ -389,6 +416,36 @@ function StudentApp({ user, onLogout }) {
       if (t.assignedTo.includes(userId)) t.assignedTo = t.assignedTo.filter(id => id !== userId);
       else t.assignedTo.push(userId);
     });
+  }
+
+  function completeRecurring(taskId) {
+    const week = getWeekNumber();
+    const year = getCurrentYear();
+    mutate(d => {
+      const tasks = d.companies[company.id].tasks.drift;
+      const t = tasks.find(t => t.id === taskId);
+      if (!t) return;
+      // Archive done version with week label
+      const archived = { ...t, id: genId(), text: `${t.text} – uke ${week}`, done: true, doneBy: user.name, approvedBy: null, archived: true, week, year };
+      // Reset current task
+      t.done = false; t.doneBy = null; t.approvedBy = null;
+      // Add archived version after current
+      const idx = tasks.indexOf(t);
+      tasks.splice(idx + 1, 0, archived);
+    });
+  }
+
+  function submitWeeklyLog() {
+    if (!weeklyLogText.trim()) return;
+    const week = getWeekNumber();
+    const year = getCurrentYear();
+    mutate(d => {
+      if (!d.companies[company.id].weeklyLogs) d.companies[company.id].weeklyLogs = [];
+      // Remove existing log for this week if any
+      d.companies[company.id].weeklyLogs = d.companies[company.id].weeklyLogs.filter(l => !(l.week === week && l.year === year));
+      d.companies[company.id].weeklyLogs.push({ id: genId(), week, year, text: weeklyLogText.trim(), teacherComment: null, approvedBy: null, createdAt: Date.now() });
+    });
+    setWeeklyLogText("");
   }
 
   return (
@@ -588,9 +645,100 @@ function StudentApp({ user, onLogout }) {
             })}
           </ul>
 
-          {/* Add task */}
+          {/* Drift-fase: ukelogg + ukentlige oppgaver med historikk */}
+          {activePhase === "drift" && (() => {
+            const week = getWeekNumber(); const year = getCurrentYear();
+            const existingLog = (company.weeklyLogs || []).find(l => l.week === week && l.year === year);
+            const historicLogs = (company.weeklyLogs || []).filter(l => !(l.week === week && l.year === year)).sort((a,b) => b.week - a.week);
+            const archivedTasks = phaseTasks.filter(t => t.archived);
+            const activeTasks = phaseTasks.filter(t => !t.archived);
+
+            return (
+              <>
+                {/* Ukentlig logg */}
+                <div style={{ background: "#faf5ff", border: "1px solid #d8b4fe", borderRadius: 14, padding: "14px 16px" }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#7c3aed", marginBottom: 8 }}>
+                    📝 Ukelogg – uke {week}
+                  </div>
+                  {existingLog ? (
+                    <div>
+                      <p style={{ fontSize: 13, color: "#374151", lineHeight: 1.7, margin: "0 0 8px", background: "#fff", borderRadius: 10, padding: "10px 12px", border: "1px solid #e9d5ff" }}>{existingLog.text}</p>
+                      {existingLog.teacherComment && (
+                        <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "8px 12px", marginBottom: 8 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#92400e", marginBottom: 3 }}>💬 Kommentar fra lærer:</div>
+                          <p style={{ fontSize: 12, color: "#78350f", margin: 0 }}>{existingLog.teacherComment}</p>
+                        </div>
+                      )}
+                      {existingLog.approvedBy
+                        ? <div style={{ fontSize: 11, color: "#16a34a", fontWeight: 700 }}>✓ Godkjent av {existingLog.approvedBy}</div>
+                        : <div style={{ fontSize: 11, color: "#c2410c" }}>⏳ Venter på lærerens godkjenning</div>
+                      }
+                      <button onClick={() => setWeeklyLogText(existingLog.text)} style={{ fontSize: 12, color: "#7c3aed", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", marginTop: 6, textDecoration: "underline" }}>Rediger logg</button>
+                    </div>
+                  ) : weeklyLogText !== "" || !existingLog ? (
+                    <div>
+                      <textarea value={weeklyLogText} onChange={e => setWeeklyLogText(e.target.value)}
+                        placeholder="Hva har dere gjort denne uken? Hva gikk bra? Hva var utfordrende? Hva er planen for neste uke?"
+                        style={{ ...S.input, minHeight: 80, resize: "vertical", marginBottom: 8 }} />
+                      <button onClick={submitWeeklyLog} disabled={!weeklyLogText.trim()}
+                        style={{ ...S.btnSmall, background: "#7c3aed", width: "100%", padding: "10px" }}>
+                        📤 Send ukelogg til lærer
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Historiske logger */}
+                {historicLogs.length > 0 && (
+                  <div>
+                    <button onClick={() => setShowLogHistory(!showLogHistory)}
+                      style={{ fontSize: 12, color: "#94a3b8", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
+                      {showLogHistory ? "▲" : "▼"} Tidligere ukelogger ({historicLogs.length})
+                    </button>
+                    {showLogHistory && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+                        {historicLogs.map(log => (
+                          <div key={log.id} style={{ background: "#f8fafc", borderRadius: 10, padding: "10px 12px", border: "1px solid #e2e8f0" }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>Uke {log.week}, {log.year}</div>
+                            <p style={{ fontSize: 12, color: "#374151", margin: "0 0 4px", lineHeight: 1.6 }}>{log.text}</p>
+                            {log.teacherComment && <div style={{ fontSize: 11, color: "#92400e", fontStyle: "italic" }}>💬 {log.teacherComment}</div>}
+                            {log.approvedBy
+                              ? <div style={{ fontSize: 10, color: "#16a34a", marginTop: 3 }}>✓ {log.approvedBy}</div>
+                              : <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 3 }}>⏳ Ikke godkjent</div>
+                            }
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Historiske/arkiverte oppgaver */}
+                {archivedTasks.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Fullført historikk</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {archivedTasks.map(t => (
+                        <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", background: "#f8fafc", borderRadius: 8, border: "1px solid #f1f5f9" }}>
+                          <div style={{ width: 18, height: 18, borderRadius: 5, background: "#22c55e", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <svg viewBox="0 0 12 12" style={{ width: 10, height: 10 }}><polyline points="1.5,6 4.5,9 10.5,3" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                          </div>
+                          <span style={{ fontSize: 12, color: "#94a3b8", textDecoration: "line-through", flex: 1 }}>{t.text}</span>
+                          {t.approvedBy && <span style={{ fontSize: 10, color: "#16a34a", fontWeight: 600 }}>✓</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+
+          {/* Add task – for drift vises enklere versjon */}
           <div style={{ display: "flex", gap: 8 }}>
-            <input value={newTask} onChange={e => setNewTask(e.target.value)} onKeyDown={e => e.key === "Enter" && addTask()} placeholder="+ Legg til ny oppgave..." style={S.input} />
+            <input value={newTask} onChange={e => setNewTask(e.target.value)} onKeyDown={e => e.key === "Enter" && addTask()}
+              placeholder={activePhase === "drift" ? "+ Legg til ekstra oppgave denne uken..." : "+ Legg til ny oppgave..."}
+              style={S.input} />
             <button onClick={addTask} style={{ ...S.btnSmall, background: phase.color }} disabled={!newTask.trim()}>Legg til</button>
           </div>
         </main>
@@ -841,9 +989,12 @@ function TeacherDashboard({ user, onLogout }) {
             <div style={S.emptyState}><span style={{ fontSize: 48 }}>📋</span><p style={{ fontWeight: 700, color: "#1e293b", marginTop: 8 }}>Velg en bedrift</p><p style={{ fontSize: 13, color: "#94a3b8" }}>Klikk i listen for å se detaljer</p></div>
           ) : (<>
             <div style={{ display: "flex", borderBottom: "1px solid #e2e8f0", marginBottom: 16 }}>
-              {[{ id: "tasks", label: "📋 Oppgaver" }, { id: "crm", label: "👥 CRM" }, { id: "admin", label: "⚙️ Rediger innhold" }].map(tab => (
-                <button key={tab.id} onClick={() => setTeacherTab(tab.id)} style={{ padding: "10px 16px", background: "none", border: "none", borderBottom: teacherTab === tab.id ? "2px solid #6366f1" : "2px solid transparent", fontWeight: teacherTab === tab.id ? 700 : 500, color: teacherTab === tab.id ? "#6366f1" : "#64748b", cursor: "pointer", fontFamily: "inherit", fontSize: 14, whiteSpace: "nowrap" }}>{tab.label}</button>
-              ))}
+              {(() => {
+                const pendingLogs = (selectedCompany.weeklyLogs || []).filter(l => !l.approvedBy).length;
+                return [{ id: "tasks", label: "📋 Oppgaver" }, { id: "logs", label: `📝 Ukelogger${pendingLogs > 0 ? ` (${pendingLogs})` : ""}` }, { id: "crm", label: "👥 CRM" }, { id: "admin", label: "⚙️ Rediger" }].map(tab => (
+                  <button key={tab.id} onClick={() => setTeacherTab(tab.id)} style={{ padding: "10px 14px", background: "none", border: "none", borderBottom: teacherTab === tab.id ? "2px solid #6366f1" : "2px solid transparent", fontWeight: teacherTab === tab.id ? 700 : 500, color: teacherTab === tab.id ? "#6366f1" : "#64748b", cursor: "pointer", fontFamily: "inherit", fontSize: 13, whiteSpace: "nowrap" }}>{tab.label}</button>
+                ));
+              })()}
             </div>
 
             <div style={S.dashCompanyHeader}>
@@ -916,6 +1067,10 @@ function TeacherDashboard({ user, onLogout }) {
               </ul>
             </>)}
 
+            {teacherTab === "logs" && (
+              <WeeklyLogsTeacher company={selectedCompany} teacherName={user.name} mutate={d => { const db2 = getDB(); d(db2); saveDB(db2); refresh(); }} />
+            )}
+
             {teacherTab === "crm" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
@@ -954,6 +1109,110 @@ function TeacherDashboard({ user, onLogout }) {
   );
 }
 
+
+
+// ─── Weekly Logs Teacher Component ───────────────────────────────────────────
+
+function WeeklyLogsTeacher({ company, teacherName, mutate }) {
+  const [commentText, setCommentText] = useState({});
+  const logs = [...(company.weeklyLogs || [])].sort((a, b) => b.week - a.week || b.year - a.year);
+
+  function approveLog(logId) {
+    mutate(d => {
+      const co = d.companies[company.id];
+      const log = co.weeklyLogs.find(l => l.id === logId);
+      if (log) { log.approvedBy = log.approvedBy ? null : teacherName; }
+    });
+  }
+
+  function saveComment(logId) {
+    const text = commentText[logId];
+    if (!text?.trim()) return;
+    mutate(d => {
+      const co = d.companies[company.id];
+      const log = co.weeklyLogs.find(l => l.id === logId);
+      if (log) log.teacherComment = text.trim();
+    });
+    setCommentText(prev => ({ ...prev, [logId]: "" }));
+  }
+
+  if (logs.length === 0) return (
+    <div style={{ textAlign: "center", padding: "48px 0", color: "#94a3b8" }}>
+      <div style={{ fontSize: 36, marginBottom: 8 }}>📝</div>
+      <div style={{ fontWeight: 600, color: "#1e293b" }}>Ingen ukelogger ennå</div>
+      <div style={{ fontSize: 13, marginTop: 4 }}>Elevene sender inn ukelogger fra Drift-fasen</div>
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+        <div style={{ padding: "6px 12px", borderRadius: 99, background: "#fff7ed", border: "1px solid #fed7aa", fontSize: 12, fontWeight: 600, color: "#c2410c" }}>
+          ⏳ {logs.filter(l => !l.approvedBy).length} venter på godkjenning
+        </div>
+        <div style={{ padding: "6px 12px", borderRadius: 99, background: "#f0fdf4", border: "1px solid #86efac", fontSize: 12, fontWeight: 600, color: "#16a34a" }}>
+          ✓ {logs.filter(l => l.approvedBy).length} godkjent
+        </div>
+      </div>
+
+      {logs.map(log => {
+        const isApproved = !!log.approvedBy;
+        const commentVal = commentText[log.id] ?? (log.teacherComment || "");
+        return (
+          <div key={log.id} style={{ background: isApproved ? "#f0fdf4" : "#fffbeb", border: `1px solid ${isApproved ? "#86efac" : "#fde68a"}`, borderRadius: 14, padding: "14px 16px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b" }}>
+                📅 Uke {log.week}, {log.year}
+              </div>
+              <button onClick={() => approveLog(log.id)}
+                style={{ padding: "5px 14px", borderRadius: 99, border: `1.5px solid ${isApproved ? "#22c55e" : "#e2e8f0"}`, background: isApproved ? "#f0fdf4" : "#fff", color: isApproved ? "#16a34a" : "#64748b", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                {isApproved ? "✓ Godkjent" : "Godkjenn"}
+              </button>
+            </div>
+
+            {/* Elevenes logg */}
+            <div style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 10, border: "1px solid #e2e8f0" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Elevenes logg</div>
+              <p style={{ fontSize: 13, color: "#374151", lineHeight: 1.7, margin: 0 }}>{log.text}</p>
+            </div>
+
+            {/* Lærerens kommentar */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
+                Din kommentar {log.teacherComment ? "(lagret)" : "(valgfritt)"}
+              </div>
+              {log.teacherComment && !commentText[log.id] && (
+                <div style={{ background: "#fffbeb", borderRadius: 10, padding: "8px 12px", marginBottom: 8, fontSize: 12, color: "#78350f", lineHeight: 1.6, border: "1px solid #fde68a" }}>
+                  💬 {log.teacherComment}
+                  <button onClick={() => setCommentText(prev => ({ ...prev, [log.id]: log.teacherComment }))}
+                    style={{ display: "block", marginTop: 4, fontSize: 11, color: "#92400e", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline", padding: 0 }}>
+                    Rediger
+                  </button>
+                </div>
+              )}
+              {(commentText[log.id] !== undefined && commentText[log.id] !== null) || !log.teacherComment ? (
+                <div>
+                  <textarea
+                    value={commentVal}
+                    onChange={e => setCommentText(prev => ({ ...prev, [log.id]: e.target.value }))}
+                    placeholder="Skriv en kommentar til elevene om denne uken..."
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, fontFamily: "inherit", outline: "none", background: "#fff", color: "#1e293b", boxSizing: "border-box", resize: "vertical", minHeight: 70 }}
+                  />
+                  <button onClick={() => saveComment(log.id)} disabled={!commentVal?.trim()}
+                    style={{ marginTop: 6, padding: "8px 16px", borderRadius: 10, border: "none", background: "#6366f1", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", opacity: commentVal?.trim() ? 1 : 0.5 }}>
+                    Lagre kommentar
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            {isApproved && <div style={{ fontSize: 11, color: "#16a34a", fontWeight: 700, marginTop: 8 }}>✓ Godkjent av {log.approvedBy}</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 // ─── Admin Editor Component ───────────────────────────────────────────────────
 
