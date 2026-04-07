@@ -1115,7 +1115,9 @@ function TeacherDashboard({ user, onLogout }) {
               />
             )}
           </>)}
-        </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
