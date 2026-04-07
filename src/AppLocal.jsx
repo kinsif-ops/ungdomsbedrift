@@ -166,7 +166,20 @@ function saveDB(db) { save("ub_db", db); }
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [session, setSession] = useState(() => load("ub_session"));
+  const [session, setSession] = useState(() => {
+    // Auto-login fra URL-parameter ?demo=1&role=student|teacher
+    const params = new URLSearchParams(window.location.search)
+    const role = params.get("role")
+    if (params.get("demo") === "1" && role) {
+      const db = getDB()
+      const user = Object.values(db.users).find(u => u.role === role)
+      if (user) {
+        save("ub_session", { userId: user.id })
+        return { userId: user.id }
+      }
+    }
+    return load("ub_session")
+  });
   const [view, setView] = useState(() => {
     const s = load("ub_session"); if (!s) return "login";
     const db = getDB(); return db.users[s.userId]?.role === "teacher" ? "teacher" : "app";
