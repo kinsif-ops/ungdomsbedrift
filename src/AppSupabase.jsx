@@ -3,6 +3,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import * as db from './db.js'
+
+const APP_VERSION = '1.0.0'
 import { PHASES, ROLES, CRM_STATUSES, OPPSTART_TASKS } from './constants.js'
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
@@ -73,6 +75,7 @@ function LoginScreen({ onRegister }) {
   const [pw, setPw] = useState('')
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
+  const [demoLoading, setDemoLoading] = useState(null)
 
   async function submit(e) {
     e.preventDefault()
@@ -80,6 +83,12 @@ function LoginScreen({ onRegister }) {
     try { await db.signIn({ email, password: pw }) }
     catch (e) { setErr('Feil e-post eller passord.') }
     finally { setLoading(false) }
+  }
+
+  function loginAsDemo(role) {
+    setDemoLoading(role)
+    // Send til demo-modus (AppLocal med localStorage, isolert fra Supabase)
+    window.location.href = `/?demo=1&role=${role}`
   }
 
   return (
@@ -96,6 +105,32 @@ function LoginScreen({ onRegister }) {
         </button>
       </form>
       <p style={S.authSwitch}>Ingen konto? <button style={S.linkBtn} onClick={onRegister}>Registrer deg</button></p>
+
+      {/* Demo-modus */}
+      <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 20, paddingTop: 18 }}>
+        <div style={{ background: 'linear-gradient(135deg, #f0fdf4, #eff6ff)', borderRadius: 14, padding: '16px 14px', border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: 18 }}>🎮</span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#1e293b' }}>Prøv demo – ingen registrering</span>
+          </div>
+          <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 12px', lineHeight: 1.6 }}>
+            Utforsk appen som elev eller lærer med ferdig eksempeldata. Helt isolert – påvirker ingen ekte brukere.
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[{ role: 'student', emoji: '🧑‍💼', label: 'Elev', name: 'Kari Nordmann' }, { role: 'teacher', emoji: '👩‍🏫', label: 'Lærer', name: 'Ola Hansen' }].map(d => (
+              <button key={d.role} onClick={() => loginAsDemo(d.role)} disabled={!!demoLoading}
+                style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '12px 8px', borderRadius: 12, border: '1.5px solid #e2e8f0', cursor: 'pointer', background: '#fff', fontFamily: 'inherit', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', opacity: demoLoading && demoLoading !== d.role ? 0.5 : 1 }}>
+                <span style={{ fontSize: 24 }}>{d.emoji}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{demoLoading === d.role ? 'Laster...' : d.label}</span>
+                <span style={{ fontSize: 11, color: '#94a3b8' }}>{d.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Versjon */}
+      <p style={{ textAlign: 'center', fontSize: 11, color: '#e2e8f0', marginTop: 14, marginBottom: 0 }}>v{APP_VERSION}</p>
     </div></div>
   )
 }
