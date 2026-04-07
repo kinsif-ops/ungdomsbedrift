@@ -208,35 +208,46 @@ function LoginScreen({ onLogin, onRegister }) {
         {err && <p style={S.error}>{err}</p>}
         <button style={S.btnPrimary} type="submit">Logg inn</button>
       </form>
-      <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 20, paddingTop: 16 }}>
-        <p style={{ fontSize: 11, color: "#94a3b8", textAlign: "center", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Prøv uten registrering</p>
-        <div style={{ display: "flex", gap: 10 }}>
-          {[{ role: "student", emoji: "🧑‍💼", label: "Elev", name: "Kari Nordmann" }, { role: "teacher", emoji: "👩‍🏫", label: "Lærer", name: "Ola Hansen" }].map(d => (
-            <button key={d.role} onClick={() => { const db = getDB(); const u = Object.values(db.users).find(u => u.role === d.role); if (u) onLogin({ userId: u.id }); }}
-              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "14px 8px", borderRadius: 12, border: "1.5px solid #e2e8f0", cursor: "pointer", background: "#f8fafc", fontFamily: "inherit" }}>
-              <span style={{ fontSize: 26 }}>{d.emoji}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{d.label}</span>
-              <span style={{ fontSize: 11, color: "#94a3b8" }}>{d.name}</span>
-            </button>
-          ))}
-        </div>
-      </div>
       <p style={S.authSwitch}>Ingen konto? <button style={S.linkBtn} onClick={onRegister}>Registrer deg</button></p>
 
-      {/* Version + Reset demo data */}
-      <div style={{ borderTop: "1px solid #f1f5f9", marginTop: 16, paddingTop: 14, textAlign: "center" }}>
-        <p style={{ fontSize: 11, color: "#e2e8f0", marginBottom: 8 }}>v{APP_VERSION}</p>
-        <button onClick={() => {
-          if (window.confirm("Dette sletter all demo-data og starter appen på nytt med ferske oppgaver og tekster. Fortsette?")) {
-            localStorage.removeItem("ub_db");
-            localStorage.removeItem("ub_session");
-            localStorage.removeItem("ub_admin_tasks");
-            window.location.reload();
-          }
-        }} style={{ background: "none", border: "none", fontSize: 12, color: "#cbd5e1", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>
-          🔄 Nullstill demo-data
-        </button>
+      {/* Demo-modus – isolert localStorage, ikke koblet til Supabase */}
+      <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 20, paddingTop: 18 }}>
+        <div style={{ background: "linear-gradient(135deg, #f0fdf4, #eff6ff)", borderRadius: 14, padding: "16px 14px", border: "1px solid #e2e8f0" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: 18 }}>🎮</span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: "#1e293b" }}>Prøv demo – ingen registrering</span>
+          </div>
+          <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 12px", lineHeight: 1.6 }}>
+            Utforsk appen som elev eller lærer med ferdig eksempeldata. Helt isolert – påvirker ingen ekte brukere.
+          </p>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            {[{ role: "student", emoji: "🧑‍💼", label: "Elev", name: "Kari Nordmann" }, { role: "teacher", emoji: "👩‍🏫", label: "Lærer", name: "Ola Hansen" }].map(d => (
+              <button key={d.role} onClick={() => {
+                const db = getDB();
+                const u = Object.values(db.users).find(u => u.role === d.role);
+                if (u) onLogin({ userId: u.id });
+              }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "12px 8px", borderRadius: 12, border: "1.5px solid #e2e8f0", cursor: "pointer", background: "#fff", fontFamily: "inherit", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", transition: "all 0.15s" }}>
+                <span style={{ fontSize: 24 }}>{d.emoji}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{d.label}</span>
+                <span style={{ fontSize: 11, color: "#94a3b8" }}>{d.name}</span>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => {
+            if (window.confirm("Dette nullstiller all demo-data og starter på nytt med ferske eksempeloppgaver. Fortsette?")) {
+              localStorage.removeItem("ub_db");
+              localStorage.removeItem("ub_session");
+              localStorage.removeItem("ub_admin_tasks");
+              window.location.reload();
+            }
+          }} style={{ width: "100%", padding: "8px", borderRadius: 10, border: "1px dashed #cbd5e1", background: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, color: "#94a3b8", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+            🔄 Nullstill demo-data
+          </button>
+        </div>
       </div>
+
+      {/* Versjon */}
+      <p style={{ textAlign: "center", fontSize: 11, color: "#e2e8f0", marginTop: 14, marginBottom: 0 }}>v{APP_VERSION}</p>
 
     </div></div>
   );
