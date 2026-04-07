@@ -959,51 +959,63 @@ function TeacherDashboard({ user, onLogout }) {
         </div>
       </header>
 
-      <div style={S.dashLayout}>
-        <aside style={S.sidebar}>
-          <div style={S.sidebarTitle}>Bedrifter ({companies.length})</div>
-          {companies.map(co => {
-            const allT = Object.values(co.tasks).flat();
-            const pct = allT.length === 0 ? 0 : Math.round(allT.filter(t => t.approvedBy).length / allT.length * 100);
-            const pending = pendingCount(co);
-            const isSelected = selected === co.id;
-            return (
-              <button key={co.id} onClick={() => { setSelected(co.id); setActivePhase("oppstart"); setTeacherTab("tasks"); }}
-                style={{ ...S.companyCard, background: isSelected ? "#6366f1" : "#fff", color: isSelected ? "#fff" : "#1e293b" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>{co.name}</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    {pending > 0 && <span style={{ background: "#f97316", color: "#fff", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "1px 6px" }}>{pending} ny</span>}
-                    <DonutChart pct={pct} color={isSelected ? "#fff" : "#6366f1"} size={32} textColor={isSelected ? "#fff" : "#1e293b"} />
+      <div style={S.appRoot}>
+        {/* Mobil: vis enten liste ELLER detalj */}
+        {(!selected || !selectedCompany) ? (
+          /* ── Bedriftsliste ── */
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            <div style={S.sidebarTitle}>Bedrifter ({companies.length})</div>
+            {companies.map(co => {
+              const allT = Object.values(co.tasks).flat();
+              const pct = allT.length === 0 ? 0 : Math.round(allT.filter(t => t.approvedBy).length / allT.length * 100);
+              const pending = pendingCount(co);
+              return (
+                <button key={co.id} onClick={() => { setSelected(co.id); setActivePhase("oppstart"); setTeacherTab("tasks"); }}
+                  style={{ ...S.companyCard, background: "#fff", color: "#1e293b", width: "100%", textAlign: "left" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontWeight: 700, fontSize: 15 }}>{co.name}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {pending > 0 && <span style={{ background: "#f97316", color: "#fff", borderRadius: 99, fontSize: 11, fontWeight: 700, padding: "2px 8px" }}>{pending} ny</span>}
+                      <DonutChart pct={pct} color="#6366f1" size={36} />
+                    </div>
                   </div>
-                </div>
-                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 3 }}>{co.members.length} elever · {co.code}</div>
-                <MiniProgress tasks={co.tasks} selected={isSelected} />
+                  <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>{co.members.length} elever · {co.code}</div>
+                  <MiniProgress tasks={co.tasks} selected={false} />
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          /* ── Bedriftsdetalj ── */
+          <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+            {/* Tilbake-knapp */}
+            <div style={{ padding: "10px 16px", borderBottom: "1px solid #e2e8f0", background: "#fff", display: "flex", alignItems: "center", gap: 10 }}>
+              <button onClick={() => setSelected(null)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, color: "#6366f1", fontWeight: 700, display: "flex", alignItems: "center", gap: 4, padding: 0 }}>
+                ← Alle bedrifter
               </button>
-            );
-          })}
-        </aside>
+              <span style={{ fontSize: 15, fontWeight: 800, color: "#1e293b" }}>{selectedCompany.name}</span>
+            </div>
 
-        <div style={S.dashMain}>
-          {!selectedCompany ? (
-            <div style={S.emptyState}><span style={{ fontSize: 48 }}>📋</span><p style={{ fontWeight: 700, color: "#1e293b", marginTop: 8 }}>Velg en bedrift</p><p style={{ fontSize: 13, color: "#94a3b8" }}>Klikk i listen for å se detaljer</p></div>
-          ) : (<>
-            <div style={{ display: "flex", borderBottom: "1px solid #e2e8f0", marginBottom: 16 }}>
+            <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
+              {/* Medlemmer */}
+              <div style={S.membersRow}>
+                {selectedCompany.members.map(m => { const u = db.users[m.userId]; if (!u) return null; return <div key={m.userId} style={S.memberChip}><Avatar name={u.name} size={28} /><div><div style={{ fontSize: 12, fontWeight: 600 }}>{u.name}</div><div style={{ fontSize: 10, color: "#94a3b8" }}>{m.role}</div></div></div>; })}
+              </div>
+
+            {/* Faner */}
+            <div style={{ display: "flex", overflowX: "auto", borderBottom: "1px solid #e2e8f0", marginBottom: 4, scrollbarWidth: "none" }}>
               {(() => {
                 const pendingLogs = (selectedCompany.weeklyLogs || []).filter(l => !l.approvedBy).length;
                 return [{ id: "tasks", label: "📋 Oppgaver" }, { id: "logs", label: `📝 Ukelogger${pendingLogs > 0 ? ` (${pendingLogs})` : ""}` }, { id: "crm", label: "👥 CRM" }, { id: "admin", label: "⚙️ Rediger" }].map(tab => (
-                  <button key={tab.id} onClick={() => setTeacherTab(tab.id)} style={{ padding: "10px 14px", background: "none", border: "none", borderBottom: teacherTab === tab.id ? "2px solid #6366f1" : "2px solid transparent", fontWeight: teacherTab === tab.id ? 700 : 500, color: teacherTab === tab.id ? "#6366f1" : "#64748b", cursor: "pointer", fontFamily: "inherit", fontSize: 13, whiteSpace: "nowrap" }}>{tab.label}</button>
+                  <button key={tab.id} onClick={() => setTeacherTab(tab.id)} style={{ padding: "10px 14px", background: "none", border: "none", borderBottom: teacherTab === tab.id ? "2px solid #6366f1" : "2px solid transparent", fontWeight: teacherTab === tab.id ? 700 : 500, color: teacherTab === tab.id ? "#6366f1" : "#64748b", cursor: "pointer", fontFamily: "inherit", fontSize: 13, whiteSpace: "nowrap", flexShrink: 0 }}>{tab.label}</button>
                 ));
               })()}
             </div>
 
-            <div style={S.dashCompanyHeader}>
-              <div><div style={{ fontSize: 20, fontWeight: 800, color: "#1e293b" }}>{selectedCompany.name}</div><div style={{ fontSize: 12, color: "#64748b" }}>Kode: {selectedCompany.code}</div></div>
-            </div>
-            <div style={S.membersRow}>
-              {selectedCompany.members.map(m => { const u = db.users[m.userId]; if (!u) return null; return <div key={m.userId} style={S.memberChip}><Avatar name={u.name} size={30} /><div><div style={{ fontSize: 12, fontWeight: 600 }}>{u.name}</div><div style={{ fontSize: 10, color: "#94a3b8" }}>{m.role}</div></div></div>; })}
-            </div>
-
+          {!selectedCompany ? (
+            <div style={S.emptyState}><span style={{ fontSize: 48 }}>📋</span><p style={{ fontWeight: 700, color: "#1e293b", marginTop: 8 }}>Velg en bedrift</p></div>
+          ) : (<>
             {teacherTab === "tasks" && (<>
               {/* Pending approval banner */}
               {pendingCount(selectedCompany) > 0 && (
