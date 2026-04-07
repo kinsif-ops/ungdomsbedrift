@@ -1,5 +1,7 @@
 import { useState, useCallback } from "react";
 
+const APP_VERSION = "1.0.0";
+
 // ─── Oppstart tasks – direkte fra elevbedrift.no/oppstart ────────────────────
 // Sjekklisten på siden har 5 offisielle punkter, supplert med diskusjonsspørsmål,
 // faseplan-nedlasting og Its learning-innlevering.
@@ -221,8 +223,9 @@ function LoginScreen({ onLogin, onRegister }) {
       </div>
       <p style={S.authSwitch}>Ingen konto? <button style={S.linkBtn} onClick={onRegister}>Registrer deg</button></p>
 
-      {/* Reset demo data */}
+      {/* Version + Reset demo data */}
       <div style={{ borderTop: "1px solid #f1f5f9", marginTop: 16, paddingTop: 14, textAlign: "center" }}>
+        <p style={{ fontSize: 11, color: "#e2e8f0", marginBottom: 8 }}>v{APP_VERSION}</p>
         <button onClick={() => {
           if (window.confirm("Dette sletter all demo-data og starter appen på nytt med ferske oppgaver og tekster. Fortsette?")) {
             localStorage.removeItem("ub_db");
@@ -372,6 +375,7 @@ function StudentApp({ user, onLogout }) {
           <div style={S.appSub}>{user.name} · {memberInfo?.role} · {user.school}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 10, color: "#cbd5e1", fontWeight: 600 }}>v{APP_VERSION}</span>
           {myPendingTasks.length > 0 && (
             <div title={`${myPendingTasks.length} oppgaver tilordnet deg`} style={{ background: "#ef4444", color: "#fff", borderRadius: 99, fontSize: 11, fontWeight: 700, padding: "2px 7px" }}>{myPendingTasks.length}</div>
           )}
@@ -777,7 +781,10 @@ function TeacherDashboard({ user, onLogout }) {
     <div style={S.appRoot}>
       <header style={S.header}>
         <div><div style={S.appTitle}>Lærerdashbord 👩‍🏫</div><div style={S.appSub}>{user.name} · {user.school}</div></div>
-        <button style={S.iconBtn} onClick={onLogout}>🚪</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 10, color: "#cbd5e1", fontWeight: 600 }}>v{APP_VERSION}</span>
+          <button style={S.iconBtn} onClick={onLogout}>🚪</button>
+        </div>
       </header>
 
       <div style={S.dashLayout}>
