@@ -76,6 +76,26 @@ function LoginScreen({ onRegister }) {
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
   const [demoLoading, setDemoLoading] = useState(null)
+  const [installPrompt, setInstallPrompt] = useState(null)
+  const [installed, setInstalled] = useState(false)
+
+  // Fang opp nettleserens install-prompt
+  useEffect(() => {
+    const handler = e => { e.preventDefault(); setInstallPrompt(e); }
+    window.addEventListener('beforeinstallprompt', handler)
+    window.addEventListener('appinstalled', () => setInstalled(true))
+    // Sjekk om allerede installert (standalone modus)
+    if (window.matchMedia('(display-mode: standalone)').matches) setInstalled(true)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  async function installApp() {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    const { outcome } = await installPrompt.userChoice
+    if (outcome === 'accepted') setInstalled(true)
+    setInstallPrompt(null)
+  }
 
   async function submit(e) {
     e.preventDefault()
@@ -128,6 +148,31 @@ function LoginScreen({ onRegister }) {
           </div>
         </div>
       </div>
+
+      {/* Installer app-knapp */}
+      {!installed && (
+        <div style={{ marginTop: 16 }}>
+          {installPrompt ? (
+            <button onClick={installApp}
+              style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              📲 Installer app på telefonen
+            </button>
+          ) : (
+            <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 14px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+              <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 6px', fontWeight: 600 }}>📲 Installer appen</p>
+              <p style={{ fontSize: 11, color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+                <strong>Android:</strong> Trykk ⋮ → "Installer app"<br/>
+                <strong>iPhone:</strong> Trykk Del 🔗 → "Legg til på hjem-skjerm"
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+      {installed && (
+        <div style={{ marginTop: 16, background: '#f0fdf4', borderRadius: 12, padding: '10px 14px', textAlign: 'center' }}>
+          <p style={{ fontSize: 13, color: '#16a34a', fontWeight: 700, margin: 0 }}>✅ Appen er installert!</p>
+        </div>
+      )}
 
       {/* Versjon */}
       <p style={{ textAlign: 'center', fontSize: 11, color: '#e2e8f0', marginTop: 14, marginBottom: 0 }}>v{APP_VERSION}</p>
