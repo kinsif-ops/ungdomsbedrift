@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 const APP_VERSION = "1.0.0";
 
@@ -226,6 +226,53 @@ export default function App() {
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
+
+// ─── Install Button Component ─────────────────────────────────────────────────
+
+function InstallButton() {
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [installed, setInstalled] = useState(false);
+
+  useEffect(() => {
+    const handler = e => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', () => setInstalled(true));
+    if (window.matchMedia('(display-mode: standalone)').matches) setInstalled(true);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  async function installApp() {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') setInstalled(true);
+    setInstallPrompt(null);
+  }
+
+  if (installed) return (
+    <div style={{ background: '#f0fdf4', borderRadius: 12, padding: '10px 14px', textAlign: 'center', marginTop: 12 }}>
+      <p style={{ fontSize: 13, color: '#16a34a', fontWeight: 700, margin: 0 }}>✅ Appen er installert!</p>
+    </div>
+  );
+
+  if (installPrompt) return (
+    <button onClick={installApp}
+      style={{ width: '100%', marginTop: 12, padding: '13px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+      📲 Installer app på telefonen
+    </button>
+  );
+
+  return (
+    <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 14px', border: '1px solid #e2e8f0', textAlign: 'center', marginTop: 12 }}>
+      <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 6px', fontWeight: 600 }}>📲 Installer appen</p>
+      <p style={{ fontSize: 11, color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+        <strong>Android:</strong> Trykk ⋮ → "Installer app"<br/>
+        <strong>iPhone:</strong> Trykk Del 🔗 → "Legg til på hjem-skjerm"
+      </p>
+    </div>
+  );
+}
+
 function LoginScreen({ onLogin, onRegister }) {
   const [email, setEmail] = useState(""); const [pw, setPw] = useState(""); const [err, setErr] = useState("");
   function submit(e) {
@@ -247,6 +294,9 @@ function LoginScreen({ onLogin, onRegister }) {
         <button style={S.btnPrimary} type="submit">Logg inn</button>
       </form>
       <p style={S.authSwitch}>Ingen konto? <button style={S.linkBtn} onClick={onRegister}>Registrer deg</button></p>
+
+      {/* Installer app-knapp */}
+      <InstallButton />
 
       {/* Demo-modus – isolert localStorage, ikke koblet til Supabase */}
       <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 20, paddingTop: 18 }}>
