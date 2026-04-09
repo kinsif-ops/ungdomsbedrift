@@ -97,7 +97,18 @@ const PHASES = [
   },
 ];
 
-const ROLES = ["CEO", "CFO", "CMO", "COO", "Styremedlem", "Annet"];
+const ROLES = [
+  "Daglig leder",
+  "Økonomiansvarlig",
+  "Personalansvarlig",
+  "Bærekraftsansvarlig",
+  "Markedsansvarlig",
+  "Kommunikasjonsansvarlig",
+  "Produksjonsansvarlig",
+  "Salgsansvarlig",
+  "Innkjøpsansvarlig",
+  "Andre stillinger",
+];
 const CRM_STATUSES = [
   { id: "lead",      label: "Lead",         color: "#94a3b8", bg: "#f8fafc" },
   { id: "kontaktet", label: "Kontaktet",    color: "#3B82F6", bg: "#EFF6FF" },
@@ -175,9 +186,9 @@ function seedDB() {
     { id: genId(), week: currentWeek - 2, year: currentYear, text: "Vi hadde et bra møte tirsdag. Kari tok kontakt med tre nye potensielle kunder på Instagram. Per fullførte regnskapet for forrige uke. Vi solgte 12 gorines på skolemarkedet fredag!", teacherComment: "Bra innsats! Husk å føre alle salgene i regnskapet.", approvedBy: "Ola Hansen", createdAt: Date.now() - 86400000 * 14 },
     { id: genId(), week: currentWeek - 1, year: currentYear, text: "Travelt med prøver denne uken, men vi fikk sendt faktura til Bygger'n AS. Postet bilder fra produksjonen på Instagram – fikk mange likes! Møtet ble litt kort.", teacherComment: null, approvedBy: null, createdAt: Date.now() - 86400000 * 7 },
   ];
-  db.companies[c1] = { id: c1, code: genCode(), name: "Fryz UB",     school: "Vennesla VGS", createdBy: sid, members: [{ userId: sid, role: "CEO" }, { userId: m2, role: "CFO" }], tasks: t1, crm: crm1, weeklyLogs: demoLogs, createdAt: Date.now() - 86400000 * 30 };
-  db.companies[c2] = { id: c2, code: genCode(), name: "ScanBack UB", school: "Vennesla VGS", createdBy: l1,  members: [{ userId: l1, role: "CEO" }],  tasks: t2, crm: [], weeklyLogs: [], createdAt: Date.now() - 86400000 * 20 };
-  db.companies[c3] = { id: c3, code: genCode(), name: "NordTech UB", school: "Vennesla VGS", createdBy: l2,  members: [{ userId: l2, role: "CMO" }],  tasks: t3, crm: [], weeklyLogs: [], createdAt: Date.now() - 86400000 * 10 };
+  db.companies[c1] = { id: c1, code: genCode(), name: "Fryz UB",     school: "Vennesla VGS", createdBy: sid, members: [{ userId: sid, role: "Daglig leder" }, { userId: m2, role: "Økonomiansvarlig" }], tasks: t1, crm: crm1, weeklyLogs: demoLogs, createdAt: Date.now() - 86400000 * 30 };
+  db.companies[c2] = { id: c2, code: genCode(), name: "ScanBack UB", school: "Vennesla VGS", createdBy: l1,  members: [{ userId: l1, role: "Daglig leder" }],  tasks: t2, crm: [], weeklyLogs: [], createdAt: Date.now() - 86400000 * 20 };
+  db.companies[c3] = { id: c3, code: genCode(), name: "NordTech UB", school: "Vennesla VGS", createdBy: l2,  members: [{ userId: l2, role: "Markedsansvarlig" }],  tasks: t3, crm: [], weeklyLogs: [], createdAt: Date.now() - 86400000 * 10 };
   return db;
 }
 
@@ -344,7 +355,7 @@ function LoginScreen({ onLogin, onRegister }) {
 function RegisterScreen({ onLogin, onBack }) {
   const [step, setStep] = useState(1); const [role, setRole] = useState("student");
   const [name, setName] = useState(""); const [email, setEmail] = useState(""); const [pw, setPw] = useState(""); const [school, setSchool] = useState("");
-  const [sRole, setSRole] = useState("CEO"); const [code, setCode] = useState(""); const [err, setErr] = useState("");
+  const [sRole, setSRole] = useState("Daglig leder"); const [code, setCode] = useState(""); const [err, setErr] = useState("");
 
   function submit(e) {
     e.preventDefault();
