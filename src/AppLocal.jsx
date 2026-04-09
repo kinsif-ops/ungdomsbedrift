@@ -514,25 +514,63 @@ function StudentApp({ user, onLogout }) {
             <div title={`${pendingApproval} oppgaver venter på lærerens godkjenning`} style={{ background: "#f97316", color: "#fff", borderRadius: 99, fontSize: 11, fontWeight: 700, padding: "2px 7px" }}>⏳{pendingApproval}</div>
           )}
           <DonutChart pct={overallPct} color="#6366f1" size={40} />
-          <button style={S.iconBtn} onClick={() => setShowInfo(!showInfo)}>ℹ️</button>
+          <button style={{ ...S.iconBtn, fontSize: 14, fontWeight: 700, color: "#6366f1", background: "#eef2ff", borderRadius: 8, padding: "4px 10px" }} onClick={() => setShowInfo(!showInfo)}>
+            {user.name.split(" ")[0]} 👤
+          </button>
           <button style={S.iconBtn} onClick={onLogout}>🚪</button>
         </div>
       </header>
 
       {showInfo && (
         <div style={S.settingsPanel}>
-          <div style={{ fontWeight: 700, marginBottom: 8, color: "#1e293b" }}>Bedriftskode</div>
+          {/* Profil */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, padding: "12px 14px", background: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+            <Avatar name={user.name} size={48} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 15, color: "#1e293b" }}>{user.name}</div>
+              <div style={{ fontSize: 12, color: "#94a3b8" }}>{user.email}</div>
+            </div>
+          </div>
+
+          {/* Rediger rolle */}
+          <div style={{ fontWeight: 700, marginBottom: 6, color: "#1e293b", fontSize: 13 }}>Din rolle i bedriften</div>
+          <select value={memberInfo?.role || "Annet"} onChange={e => {
+            mutate(d => {
+              const m = d.companies[company.id].members.find(m => m.userId === user.id);
+              if (m) m.role = e.target.value;
+            });
+          }} style={{ ...S.select, marginBottom: 14 }}>
+            {ROLES.map(r => <option key={r}>{r}</option>)}
+          </select>
+
+          {/* Bedriftskode */}
+          <div style={{ fontWeight: 700, marginBottom: 6, color: "#1e293b", fontSize: 13 }}>Bedriftskode</div>
           <div style={S.codeBox}><span style={S.code}>{company.code}</span><button style={S.copyBtn} onClick={() => navigator.clipboard?.writeText(company.code)}>Kopier</button></div>
-          <p style={{ fontSize: 11, color: "#94a3b8", marginBottom: 12 }}>Del med gruppemedlemmer</p>
-          <div style={{ fontWeight: 700, marginBottom: 8, color: "#1e293b" }}>Gruppemedlemmer</div>
-          {company.members.map(m => { const u = db.users[m.userId]; if (!u) return null; return <div key={m.userId} style={S.memberRow}><Avatar name={u.name} /><div><div style={{ fontWeight: 600, fontSize: 13 }}>{u.name}</div><div style={{ fontSize: 11, color: "#94a3b8" }}>{m.role}</div></div></div>; })}
+          <p style={{ fontSize: 11, color: "#94a3b8", marginBottom: 14 }}>Del med gruppemedlemmer</p>
+
+          {/* Gruppemedlemmer */}
+          <div style={{ fontWeight: 700, marginBottom: 8, color: "#1e293b", fontSize: 13 }}>Gruppemedlemmer</div>
+          {company.members.map(m => {
+            const u = db.users[m.userId]; if (!u) return null;
+            return (
+              <div key={m.userId} style={S.memberRow}>
+                <Avatar name={u.name} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{u.name}{u.id === user.id ? " (meg)" : ""}</div>
+                  <div style={{ fontSize: 11, color: "#94a3b8" }}>{m.role}</div>
+                </div>
+              </div>
+            );
+          })}
+
+          <button onClick={() => setShowInfo(false)} style={{ marginTop: 12, width: "100%", padding: "10px", borderRadius: 10, border: "1.5px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, color: "#64748b", fontSize: 13 }}>Lukk</button>
         </div>
       )}
 
       {/* Tab bar */}
-      <div style={{ display: "flex", background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "0 16px" }}>
-        {[{ id: "tasks", label: "📋 Oppgaver" }, { id: "crm", label: "👥 CRM" }, { id: "admin", label: "⚙️ Rediger innhold" }].map(tab => (
-          <button key={tab.id} onClick={() => setMainTab(tab.id)} style={{ padding: "12px 16px", background: "none", border: "none", borderBottom: mainTab === tab.id ? "2px solid #6366f1" : "2px solid transparent", fontWeight: mainTab === tab.id ? 700 : 500, color: mainTab === tab.id ? "#6366f1" : "#64748b", cursor: "pointer", fontFamily: "inherit", fontSize: 14 }}>{tab.label}</button>
+      <div style={{ display: "flex", background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "0 8px" }}>
+        {[{ id: "tasks", label: "📋 Oppgaver" }, { id: "crm", label: "👥 CRM" }, { id: "badges", label: "🏅 Badges" }].map(tab => (
+          <button key={tab.id} onClick={() => setMainTab(tab.id)} style={{ padding: "12px 14px", background: "none", border: "none", borderBottom: mainTab === tab.id ? "2px solid #6366f1" : "2px solid transparent", fontWeight: mainTab === tab.id ? 700 : 500, color: mainTab === tab.id ? "#6366f1" : "#64748b", cursor: "pointer", fontFamily: "inherit", fontSize: 14, whiteSpace: "nowrap" }}>{tab.label}</button>
         ))}
       </div>
 
@@ -795,6 +833,102 @@ function StudentApp({ user, onLogout }) {
       </>}
 
       {mainTab === "crm" && <CRMTab company={company} user={user} db={db} mutate={mutate} crmModal={crmModal} setCrmModal={setCrmModal} members={members} />}
+      {mainTab === "badges" && <BadgesTab company={company} user={user} db={db} />}
+    </div>
+  );
+}
+
+
+// ─── Badges Tab ───────────────────────────────────────────────────────────────
+
+const ALL_BADGES = [
+  { id: "oppstarter",   emoji: "🚀", label: "Oppstarter",    desc: "Fullført Oppstart-fasen",              check: (co, uid) => (co.tasks.oppstart || []).filter(t => t.approvedBy).length >= 4 },
+  { id: "idemaker",     emoji: "💡", label: "Idémaker",      desc: "Fullført Idéutvikling-fasen",          check: (co, uid) => (co.tasks.ideutvikling || []).filter(t => t.approvedBy).length >= 4 },
+  { id: "etablerer",    emoji: "🏗️", label: "Etablerer",     desc: "Fullført Etablering-fasen",            check: (co, uid) => (co.tasks.etablering || []).filter(t => t.approvedBy).length >= 4 },
+  { id: "drifter",      emoji: "⚙️", label: "Drifter",       desc: "Sendt inn 4 ukelogger",                check: (co, uid) => (co.weeklyLogs || []).length >= 4 },
+  { id: "avvikler",     emoji: "🏁", label: "Avvikler",      desc: "Fullført Avvikling-fasen",             check: (co, uid) => (co.tasks.avvikling || []).filter(t => t.approvedBy).length >= 3 },
+  { id: "teamspiller",  emoji: "🤝", label: "Teamspiller",   desc: "Tilordnet 5+ oppgaver til andre",      check: (co, uid) => Object.values(co.tasks).flat().filter(t => (t.assignedTo||[]).includes(uid) && t.done).length >= 5 },
+  { id: "selger",       emoji: "💰", label: "Selger",        desc: "Registrert første kunde i CRM",        check: (co, uid) => (co.crm || []).some(c => c.status === "kunde") },
+  { id: "nettverk",     emoji: "📇", label: "Nettverker",    desc: "5+ kontakter i CRM",                   check: (co, uid) => (co.crm || []).length >= 5 },
+  { id: "flink_elev",   emoji: "⭐", label: "Flink elev",    desc: "10+ oppgaver fullført og godkjent",    check: (co, uid) => Object.values(co.tasks).flat().filter(t => t.approvedBy).length >= 10 },
+  { id: "logghelt",     emoji: "📝", label: "Logghelt",      desc: "Sendt inn ukelogg 8 uker på rad",      check: (co, uid) => (co.weeklyLogs || []).length >= 8 },
+];
+
+function BadgesTab({ company, user, db }) {
+  const earned = ALL_BADGES.filter(b => {
+    try { return b.check(company, user.id); } catch { return false; }
+  });
+  const notEarned = ALL_BADGES.filter(b => !earned.includes(b));
+
+  return (
+    <div style={{ flex: 1, padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Header */}
+      <div style={{ background: "linear-gradient(135deg, #667eea, #764ba2)", borderRadius: 16, padding: "18px 16px", color: "#fff", textAlign: "center" }}>
+        <div style={{ fontSize: 36, marginBottom: 6 }}>🏅</div>
+        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>Dine utmerkelser</div>
+        <div style={{ fontSize: 13, opacity: 0.85 }}>{earned.length} av {ALL_BADGES.length} låst opp</div>
+        <div style={{ display: "flex", gap: 4, justifyContent: "center", marginTop: 12, flexWrap: "wrap" }}>
+          {ALL_BADGES.map(b => (
+            <div key={b.id} style={{ fontSize: 22, opacity: earned.includes(b) ? 1 : 0.25, filter: earned.includes(b) ? "none" : "grayscale(100%)" }}>
+              {b.emoji}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Earned */}
+      {earned.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>
+            Opptjent ({earned.length})
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {earned.map(b => (
+              <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 12, padding: "12px 14px", border: "1.5px solid #e9d5ff", boxShadow: "0 2px 8px rgba(99,102,241,0.08)" }}>
+                <div style={{ fontSize: 32, width: 48, height: 48, borderRadius: 12, background: "linear-gradient(135deg, #faf5ff, #ede9fe)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {b.emoji}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b" }}>{b.label}</div>
+                  <div style={{ fontSize: 12, color: "#7c3aed", marginTop: 2 }}>{b.desc}</div>
+                </div>
+                <div style={{ fontSize: 18 }}>✅</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Not yet earned */}
+      {notEarned.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>
+            Ikke låst opp ennå ({notEarned.length})
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {notEarned.map(b => (
+              <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#f8fafc", borderRadius: 12, padding: "12px 14px", border: "1px solid #e2e8f0", opacity: 0.65 }}>
+                <div style={{ fontSize: 32, width: 48, height: 48, borderRadius: 12, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, filter: "grayscale(100%)" }}>
+                  {b.emoji}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#64748b" }}>{b.label}</div>
+                  <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{b.desc}</div>
+                </div>
+                <div style={{ fontSize: 16, color: "#cbd5e1" }}>🔒</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {earned.length === 0 && (
+        <div style={{ textAlign: "center", padding: "32px 0", color: "#94a3b8" }}>
+          <div style={{ fontSize: 48, marginBottom: 8 }}>🔒</div>
+          <div style={{ fontWeight: 600, color: "#1e293b", marginBottom: 4 }}>Ingen badges ennå</div>
+          <div style={{ fontSize: 13 }}>Fullfør oppgaver og aktiviteter for å låse opp utmerkelser!</div>
+        </div>
+      )}
     </div>
   );
 }
