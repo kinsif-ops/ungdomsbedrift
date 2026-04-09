@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import * as db from './db.js'
+import { supabase } from './supabaseClient.js'
 
 const APP_VERSION = '1.0.0'
 import { PHASES, ROLES, CRM_STATUSES, OPPSTART_TASKS } from './constants.js'
@@ -183,21 +184,50 @@ function LoginScreen({ onRegister }) {
 function RegisterScreen({ onSuccess, onBack }) {
   const [step, setStep] = useState(1)
   const [role, setRole] = useState('student')
-  const [name, setName] = useState(''); const [email, setEmail] = useState('')
-  const [pw, setPw] = useState(''); const [school, setSchool] = useState('')
-  const [sRole, setSRole] = useState('CEO'); const [code, setCode] = useState('')
-  const [err, setErr] = useState(''); const [loading, setLoading] = useState(false)
+  const [companyMode, setCompanyMode] = useState(null) // 'new' | 'join'
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [pw, setPw] = useState('')
+  const [countyId, setCountyId] = useState('')
+  const [schoolId, setSchoolId] = useState('')
+  const [sRole, setSRole] = useState('CEO')
+  const [companyName, setCompanyName] = useState('')
+  const [joinCode, setJoinCode] = useState('')
+  const [err, setErr] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [counties, setCounties] = useState([])
+  const [schools, setSchools] = useState([])
+  const [generatedCode, setGeneratedCode] = useState(null)
+
+  // Last fylker ved oppstart
+  useEffect(() => {
+    supabase.from('counties').select('*').order('sort_order')
+      .then(({ data }) => setCounties(data || []))
+  }, [])
+
+  // Last skoler når fylke velges
+  useEffect(() => {
+    if (!countyId) { setSchools([]); setSchoolId(''); return }
+    supabase.from('schools').select('*')
+      .eq('county_id', countyId).eq('active', true).order('name')
+      .then(({ data }) => setSchools(data || []))
+  }, [countyId])
+
+  const selectedSchool = schools.find(s => s.id === schoolId)
 
   async function submit(e) {
     e.preventDefault()
-    if (!name || !email || !pw || !school) { setErr('Fyll inn alle feltene.'); return }
+    if (!name || !email || !pw || !schoolId) { setErr('Fyll inn alle feltene.'); return }
     if (pw.length < 6) { setErr('Passordet må være minst 6 tegn.'); return }
+    if (role === 'student' && !companyMode) { setErr('Velg om du oppretter eller blir med i en bedrift.'); return }
+    if (role === 'student' && companyMode === 'new' && !companyName.trim()) { setErr('Skriv inn bedriftsnavn.'); return }
+    if (role === 'student' && companyMode === 'join' && !joinCode.trim()) { setErr('Skriv inn tilkoblingskoden.'); return }
     setLoading(true); setErr('')
     try {
-      const authUser = await db.signUp({ name, email, password: pw, role, school })
+      const authUser = await db.signUp({ name, email, password: pw, role, school: selectedSchool?.name || '' })
       if (role === 'student') {
-        if (code) {
-          await db.joinCompany({ code, userId: authUser.id, memberRole: sRole })
+        if (companyMode === 'join') {
+          await db.joinCompany({ code: joinCode.toUpperCase(), userId: authUser.id, memberRole: sRole })
         } else {
           const allTasks = PHASES.flatMap(p =>
             p.defaultTasks.map((t, i) => ({
@@ -209,7 +239,16 @@ function RegisterScreen({ onSuccess, onBack }) {
               sortOrder: i,
             }))
           )
-          await db.createCompany({ name: `${name}s bedrift`, school, userId: authUser.id, memberRole: sRole, initialTasks: allTasks })
+          const company = await db.createCompany({
+            name: companyName.trim(),
+            school: selectedSchool?.name || '',
+            userId: authUser.id,
+            memberRole: sRole,
+            initialTasks: allTasks
+          })
+          setGeneratedCode(company.code)
+          setLoading(false)
+          return // Vis koden før vi går videre
         }
       }
       onSuccess()
@@ -220,6 +259,7 @@ function RegisterScreen({ onSuccess, onBack }) {
     }
   }
 
+  // Steg 1 – Velg rolle
   if (step === 1) return (
     <div style={S.authBg}><div style={S.authCard}>
       <button style={S.backBtn} onClick={onBack}>← Tilbake</button>
@@ -227,9 +267,11 @@ function RegisterScreen({ onSuccess, onBack }) {
       <h1 style={S.authTitle}>Opprett konto</h1>
       <p style={S.authSub}>Hvem er du?</p>
       <div style={S.roleRow}>
-        {[{ v: 'student', e: '🧑‍💼', l: 'Elev' }, { v: 'teacher', e: '👩‍🏫', l: 'Lærer' }].map(r => (
-          <button key={r.v} onClick={() => setRole(r.v)} style={{ ...S.roleCard, ...(role === r.v ? S.roleCardActive : {}) }}>
-            <span style={{ fontSize: 36 }}>{r.e}</span><span style={{ fontWeight: 700 }}>{r.l}</span>
+        {[{ v: 'student', e: '🧑', l: 'Elev' }, { v: 'teacher', e: '👩', l: 'Lærer' }].map(r => (
+          <button key={r.v} onClick={() => setRole(r.v)}
+            style={{ ...S.roleCard, ...(role === r.v ? S.roleCardActive : {}) }}>
+            <span style={{ fontSize: 36 }}>{r.e}</span>
+            <span style={{ fontWeight: 700 }}>{r.l}</span>
           </button>
         ))}
       </div>
@@ -237,29 +279,105 @@ function RegisterScreen({ onSuccess, onBack }) {
     </div></div>
   )
 
-  return (
+  // Steg 2 – For elever: opprett eller bli med
+  if (step === 2 && role === 'student') return (
     <div style={S.authBg}><div style={S.authCard}>
       <button style={S.backBtn} onClick={() => setStep(1)}>← Tilbake</button>
-      <div style={S.authLogo}>{role === 'teacher' ? '👩‍🏫' : '🧑‍💼'}</div>
-      <h1 style={S.authTitle}>{role === 'teacher' ? 'Ny lærer' : 'Ny elev'}</h1>
-      <form onSubmit={submit} style={S.form}>
-        <input style={S.input} placeholder="Fullt navn" value={name} onChange={e => setName(e.target.value)} required />
-        <input style={S.input} type="email" placeholder="E-post" value={email} onChange={e => setEmail(e.target.value)} required />
-        <input style={S.input} type="password" placeholder="Passord (min. 6 tegn)" value={pw} onChange={e => setPw(e.target.value)} required />
-        <input style={S.input} placeholder="Skole" value={school} onChange={e => setSchool(e.target.value)} required />
-        {role === 'student' && <>
-          <div style={S.divider}><span style={S.dividerText}>Din rolle i bedriften</span></div>
-          <select style={S.select} value={sRole} onChange={e => setSRole(e.target.value)}>{ROLES.map(r => <option key={r}>{r}</option>)}</select>
-          <div style={S.divider}><span style={S.dividerText}>Tilkoblingskode (tom = ny bedrift)</span></div>
-          <input style={{ ...S.input, letterSpacing: 4 }} placeholder="F.eks. XK7R2P" value={code} onChange={e => setCode(e.target.value)} maxLength={6} />
-        </>}
-        {err && <p style={S.error}>{err}</p>}
-        <button style={{ ...S.btnPrimary, opacity: loading ? 0.7 : 1 }} type="submit" disabled={loading}>
-          {loading ? 'Oppretter konto...' : 'Opprett konto'}
+      <div style={S.authLogo}>🏢</div>
+      <h1 style={S.authTitle}>Din bedrift</h1>
+      <p style={S.authSub}>Skal du opprette en ny bedrift eller bli med i en eksisterende?</p>
+      <div style={S.roleRow}>
+        <button onClick={() => setCompanyMode('new')}
+          style={{ ...S.roleCard, ...(companyMode === 'new' ? S.roleCardActive : {}) }}>
+          <span style={{ fontSize: 32 }}>🆕</span>
+          <span style={{ fontWeight: 700, fontSize: 13 }}>Opprett ny bedrift</span>
+          <span style={{ fontSize: 11, color: '#94a3b8' }}>Du er den første</span>
         </button>
-      </form>
+        <button onClick={() => setCompanyMode('join')}
+          style={{ ...S.roleCard, ...(companyMode === 'join' ? S.roleCardActive : {}) }}>
+          <span style={{ fontSize: 32 }}>🔗</span>
+          <span style={{ fontWeight: 700, fontSize: 13 }}>Bli med i bedrift</span>
+          <span style={{ fontSize: 11, color: '#94a3b8' }}>Du har en kode</span>
+        </button>
+      </div>
+      <button style={{ ...S.btnPrimary, opacity: companyMode ? 1 : 0.5 }}
+        disabled={!companyMode} onClick={() => setStep(3)}>Fortsett</button>
     </div></div>
   )
+
+  // Steg etter rolle for lærere går rett til steg 3
+  // Steg 3 – Personlig info + skole
+  if ((step === 2 && role === 'teacher') || (step === 3 && role === 'student')) return (
+    <div style={S.authBg}><div style={{ ...S.authCard, maxHeight: '90vh', overflowY: 'auto' }}>
+      <button style={S.backBtn} onClick={() => role === 'teacher' ? setStep(1) : setStep(2)}>← Tilbake</button>
+      <div style={S.authLogo}>{role === 'teacher' ? '👩' : '🧑'}</div>
+      <h1 style={S.authTitle}>{role === 'teacher' ? 'Ny lærer' : 'Ny elev'}</h1>
+
+      {/* Vis generert kode etter opprettelse */}
+      {generatedCode && (
+        <div style={{ background: '#f0fdf4', border: '2px solid #22c55e', borderRadius: 16, padding: '20px 16px', textAlign: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#16a34a', marginBottom: 8 }}>🎉 Bedriften er opprettet!</div>
+          <div style={{ fontSize: 13, color: '#374151', marginBottom: 12 }}>Del denne koden med resten av gruppen:</div>
+          <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: 8, color: '#6366f1', fontFamily: 'monospace', background: '#eef2ff', borderRadius: 12, padding: '12px 16px', marginBottom: 12 }}>{generatedCode}</div>
+          <button onClick={onSuccess} style={{ ...S.btnPrimary, marginTop: 0 }}>Gå til appen →</button>
+        </div>
+      )}
+
+      {!generatedCode && (
+        <form onSubmit={submit} style={S.form}>
+          <input style={S.input} placeholder="Fullt navn *" value={name} onChange={e => setName(e.target.value)} required autoFocus />
+          <input style={S.input} type="email" placeholder="E-post *" value={email} onChange={e => setEmail(e.target.value)} required />
+          <input style={S.input} type="password" placeholder="Passord (min. 6 tegn) *" value={pw} onChange={e => setPw(e.target.value)} required />
+
+          <div style={S.divider}><span style={S.dividerText}>Fylke og skole</span></div>
+          <select style={S.select} value={countyId} onChange={e => { setCountyId(e.target.value); setSchoolId(''); }} required>
+            <option value="">Velg fylke...</option>
+            {counties.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          {countyId && (
+            <select style={S.select} value={schoolId} onChange={e => setSchoolId(e.target.value)} required>
+              <option value="">Velg skole...</option>
+              {schools.length === 0
+                ? <option disabled>Ingen aktive skoler i dette fylket</option>
+                : schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)
+              }
+            </select>
+          )}
+          {countyId && schools.length === 0 && (
+            <p style={{ fontSize: 11, color: '#f97316', textAlign: 'center' }}>
+              Ingen skoler er aktivert i dette fylket ennå. Kontakt administrator.
+            </p>
+          )}
+
+          {role === 'student' && <>
+            <div style={S.divider}><span style={S.dividerText}>Din rolle i bedriften</span></div>
+            <select style={S.select} value={sRole} onChange={e => setSRole(e.target.value)}>
+              {ROLES.map(r => <option key={r}>{r}</option>)}
+            </select>
+
+            {companyMode === 'new' && <>
+              <div style={S.divider}><span style={S.dividerText}>Bedriftsnavn</span></div>
+              <input style={S.input} placeholder="F.eks. Fryz UB *" value={companyName} onChange={e => setCompanyName(e.target.value)} required />
+            </>}
+
+            {companyMode === 'join' && <>
+              <div style={S.divider}><span style={S.dividerText}>Tilkoblingskode</span></div>
+              <input style={{ ...S.input, letterSpacing: 6, textTransform: 'uppercase', fontWeight: 700, fontSize: 18, textAlign: 'center' }}
+                placeholder="F.eks. XK7R2P" value={joinCode}
+                onChange={e => setJoinCode(e.target.value.toUpperCase())} maxLength={6} required />
+            </>}
+          </>}
+
+          {err && <p style={S.error}>{err}</p>}
+          <button style={{ ...S.btnPrimary, opacity: loading ? 0.7 : 1 }} type="submit" disabled={loading}>
+            {loading ? 'Oppretter konto...' : companyMode === 'new' ? '🏢 Opprett bedrift og konto' : '🔗 Bli med og opprett konto'}
+          </button>
+        </form>
+      )}
+    </div></div>
+  )
+
+  return null
 }
 
 // ─── Student App ──────────────────────────────────────────────────────────────
