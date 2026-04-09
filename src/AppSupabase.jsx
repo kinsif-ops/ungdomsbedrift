@@ -190,7 +190,7 @@ function RegisterScreen({ onSuccess, onBack }) {
   const [pw, setPw] = useState('')
   const [countyId, setCountyId] = useState('')
   const [schoolId, setSchoolId] = useState('')
-  const [sRole, setSRole] = useState('CEO')
+  const [sRole, setSRole] = useState('Daglig leder')
   const [companyName, setCompanyName] = useState('')
   const [joinCode, setJoinCode] = useState('')
   const [err, setErr] = useState('')
