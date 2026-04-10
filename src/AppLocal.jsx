@@ -346,7 +346,12 @@ function LoginScreen({ onLogin, onRegister }) {
       </div>
 
       {/* Versjon */}
-      <p style={{ textAlign: "center", fontSize: 11, color: "#e2e8f0", marginTop: 14, marginBottom: 0 }}>v{APP_VERSION}</p>
+      <div style={{ textAlign: "center", marginTop: 14 }}>
+        <p style={{ fontSize: 11, color: "#94a3b8", marginBottom: 3 }}>
+          Utviklet ved <strong style={{ color: "#6366f1" }}>Vennesla vgs</strong>
+        </p>
+        <p style={{ fontSize: 10, color: "#cbd5e1", margin: 0 }}>v{APP_VERSION}</p>
+      </div>
 
     </div></div>
   );
