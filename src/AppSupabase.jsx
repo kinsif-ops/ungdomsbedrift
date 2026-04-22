@@ -510,7 +510,7 @@ function StudentApp({ profile, onLogout }) {
           {pendingApproval > 0 && <div style={{ background: '#f97316', color: '#fff', borderRadius: 99, fontSize: 11, fontWeight: 700, padding: '2px 7px' }}>⏳{pendingApproval}</div>}
           <DonutChart pct={overallPct} color="#6366f1" size={40} />
           <button style={S.iconBtn} onClick={() => setShowInfo(!showInfo)}>ℹ️</button>
-          <button style={S.iconBtn} onClick={onLogout}>🚪</button>
+          <button onClick={() => { if (window.confirm("Er du sikker på at du vil logge ut?")) onLogout(); }} style={{ background: "none", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, color: "#64748b", display: "flex", alignItems: "center", gap: 5 }}>⏻ Logg ut</button>
         </div>
       </header>
 
@@ -726,7 +726,7 @@ function TeacherDashboard({ profile, onLogout }) {
     <div style={S.appRoot}>
       <header style={S.header}>
         <div><div style={S.appTitle}>Lærerdashbord 👩‍🏫</div><div style={S.appSub}>{profile.name} · {profile.school}</div></div>
-        <button style={S.iconBtn} onClick={onLogout}>🚪</button>
+        <button onClick={() => { if (window.confirm("Er du sikker på at du vil logge ut?")) onLogout(); }} style={{ background: "none", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, color: "#64748b", display: "flex", alignItems: "center", gap: 5 }}>⏻ Logg ut</button>
       </header>
 
       <div style={S.dashLayout}>
@@ -873,8 +873,8 @@ function CRMModal({ contact, members, currentUser, onSave, onClose }) {
   const [assignedTo, setAssignedTo] = useState(contact?.assigned_to || currentUser.id)
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
-      <div style={{ background: '#fff', borderRadius: 20, padding: '24px 22px', width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 100 }}>
+      <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 22px 36px', width: '100%', maxWidth: 520, boxShadow: '0 -8px 40px rgba(0,0,0,0.18)', maxHeight: '92vh', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1e293b', margin: '0 0 18px' }}>{contact ? 'Rediger kontakt' : 'Ny kontakt'}</h2>
         <form onSubmit={e => { e.preventDefault(); if (!name.trim()) return; onSave({ name, type, email, phone, status, note, assignedTo }) }} style={S.form}>
           <input style={S.input} placeholder="Navn *" value={name} onChange={e => setName(e.target.value)} required autoFocus />
