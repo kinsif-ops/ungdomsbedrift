@@ -524,10 +524,14 @@ function StudentApp({ user, onLogout }) {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 10, color: "#cbd5e1", fontWeight: 600 }}>v{APP_VERSION}</span>
           {myPendingTasks.length > 0 && (
-            <div title={`${myPendingTasks.length} oppgaver tilordnet deg`} style={{ background: "#ef4444", color: "#fff", borderRadius: 99, fontSize: 11, fontWeight: 700, padding: "2px 7px" }}>{myPendingTasks.length}</div>
+            <div style={{ background: "#ef4444", color: "#fff", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "3px 9px", display: "flex", alignItems: "center", gap: 3 }}>
+              📌 {myPendingTasks.length} til meg
+            </div>
           )}
           {pendingApproval > 0 && (
-            <div title={`${pendingApproval} oppgaver venter på lærerens godkjenning`} style={{ background: "#f97316", color: "#fff", borderRadius: 99, fontSize: 11, fontWeight: 700, padding: "2px 7px" }}>⏳{pendingApproval}</div>
+            <div style={{ background: "#f97316", color: "#fff", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "3px 9px", display: "flex", alignItems: "center", gap: 3 }}>
+              ⏳ {pendingApproval} venter
+            </div>
           )}
           <DonutChart pct={overallPct} color="#6366f1" size={40} />
           <button style={{ ...S.iconBtn, fontSize: 14, fontWeight: 700, color: "#6366f1", background: "#eef2ff", borderRadius: 8, padding: "4px 10px" }} onClick={() => setShowInfo(!showInfo)}>
@@ -706,7 +710,6 @@ function StudentApp({ user, onLogout }) {
                     <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
                       <button onClick={() => { setAssignModal(isAssignOpen ? null : task.id); setExpandedInfo(null); }} title="Tilordne"
                         style={{ ...S.iconBtn, fontSize: 13, color: assignedUsers.length > 0 ? "#6366f1" : "#cbd5e1", background: isAssignOpen ? "#eef2ff" : "none" }}>👤</button>
-                      {!isApproved && <button onClick={() => deleteTask(task.id)} style={S.deleteBtn}>×</button>}
                     </div>
                   </div>
 
@@ -858,16 +861,21 @@ function StudentApp({ user, onLogout }) {
 // ─── Badges Tab ───────────────────────────────────────────────────────────────
 
 const ALL_BADGES = [
-  { id: "oppstarter",   emoji: "🚀", label: "Oppstarter",    desc: "Fullført Oppstart-fasen",              check: (co, uid) => (co.tasks.oppstart || []).filter(t => t.approvedBy).length >= 4 },
-  { id: "idemaker",     emoji: "💡", label: "Idémaker",      desc: "Fullført Idéutvikling-fasen",          check: (co, uid) => (co.tasks.ideutvikling || []).filter(t => t.approvedBy).length >= 4 },
-  { id: "etablerer",    emoji: "🏗️", label: "Etablerer",     desc: "Fullført Etablering-fasen",            check: (co, uid) => (co.tasks.etablering || []).filter(t => t.approvedBy).length >= 4 },
-  { id: "drifter",      emoji: "⚙️", label: "Drifter",       desc: "Sendt inn 4 ukelogger",                check: (co, uid) => (co.weeklyLogs || []).length >= 4 },
-  { id: "avvikler",     emoji: "🏁", label: "Avvikler",      desc: "Fullført Avvikling-fasen",             check: (co, uid) => (co.tasks.avvikling || []).filter(t => t.approvedBy).length >= 3 },
-  { id: "teamspiller",  emoji: "🤝", label: "Teamspiller",   desc: "Tilordnet 5+ oppgaver til andre",      check: (co, uid) => Object.values(co.tasks).flat().filter(t => (t.assignedTo||[]).includes(uid) && t.done).length >= 5 },
-  { id: "selger",       emoji: "💰", label: "Selger",        desc: "Registrert første kunde i CRM",        check: (co, uid) => (co.crm || []).some(c => c.status === "kunde") },
-  { id: "nettverk",     emoji: "📇", label: "Nettverker",    desc: "5+ kontakter i CRM",                   check: (co, uid) => (co.crm || []).length >= 5 },
-  { id: "flink_elev",   emoji: "⭐", label: "Flink elev",    desc: "10+ oppgaver fullført og godkjent",    check: (co, uid) => Object.values(co.tasks).flat().filter(t => t.approvedBy).length >= 10 },
-  { id: "logghelt",     emoji: "📝", label: "Logghelt",      desc: "Sendt inn ukelogg 8 uker på rad",      check: (co, uid) => (co.weeklyLogs || []).length >= 8 },
+  { id: "oppstarter",    emoji: "🚀", label: "Oppstarter",      desc: "Fullført Oppstart-fasen",                   check: (co, uid) => (co.tasks.oppstart || []).filter(t => t.approvedBy).length >= 4 },
+  { id: "idemaker",      emoji: "💡", label: "Idémaker",        desc: "Fullført Idéutvikling-fasen",               check: (co, uid) => (co.tasks.ideutvikling || []).filter(t => t.approvedBy).length >= 4 },
+  { id: "etablerer",     emoji: "🏗️", label: "Etablerer",       desc: "Fullført Etablering-fasen",                 check: (co, uid) => (co.tasks.etablering || []).filter(t => t.approvedBy).length >= 4 },
+  { id: "drifter",       emoji: "⚙️", label: "Drifter",         desc: "Sendt inn 4 ukelogger",                     check: (co, uid) => (co.weeklyLogs || []).length >= 4 },
+  { id: "avvikler",      emoji: "🏁", label: "Avvikler",        desc: "Fullført Avvikling-fasen",                  check: (co, uid) => (co.tasks.avvikling || []).filter(t => t.approvedBy).length >= 3 },
+  { id: "teamspiller",   emoji: "🤝", label: "Teamspiller",     desc: "5+ oppgaver fullført og tilordnet",         check: (co, uid) => Object.values(co.tasks).flat().filter(t => (t.assignedTo||[]).includes(uid) && t.done).length >= 5 },
+  { id: "selger",        emoji: "💰", label: "Selger",          desc: "Registrert første kunde i CRM",             check: (co, uid) => (co.crm || []).some(c => c.status === "kunde") },
+  { id: "superselger",   emoji: "🏆", label: "Superselger",     desc: "5+ kunder i CRM",                           check: (co, uid) => (co.crm || []).filter(c => c.status === "kunde").length >= 5 },
+  { id: "nettverk",      emoji: "📇", label: "Nettverker",      desc: "5+ kontakter i CRM",                        check: (co, uid) => (co.crm || []).length >= 5 },
+  { id: "grounder",      emoji: "🦁", label: "Ekte gründer",    desc: "Alle 5 faser fullført",                     check: (co, uid) => ["oppstart","ideutvikling","etablering","drift","avvikling"].every(p => (co.tasks[p]||[]).some(t => t.approvedBy)) },
+  { id: "flink_elev",    emoji: "⭐", label: "Flink elev",      desc: "10+ oppgaver fullført og godkjent",         check: (co, uid) => Object.values(co.tasks).flat().filter(t => t.approvedBy).length >= 10 },
+  { id: "logghelt",      emoji: "📝", label: "Logghelt",        desc: "Sendt inn 8 ukelogger",                     check: (co, uid) => (co.weeklyLogs || []).length >= 8 },
+  { id: "innovator",     emoji: "🔬", label: "Innovatør",       desc: "Fullført Idéutvikling med prototype",       check: (co, uid) => (co.tasks.ideutvikling || []).filter(t => t.done).length >= 3 },
+  { id: "baerekraft",    emoji: "🌱", label: "Bærekraftig",     desc: "Fullført alle bærekraft-oppgaver",          check: (co, uid) => (co.tasks.oppstart || []).filter(t => t.text.includes("bærekraft") && t.done).length >= 1 },
+  { id: "messe",         emoji: "🎪", label: "Messedeltaker",   desc: "Fullført messeoppgave i Drift",             check: (co, uid) => (co.tasks.drift || []).filter(t => t.text.toLowerCase().includes("messe") && t.done).length >= 1 },
 ];
 
 function BadgesTab({ company, user, db }) {
@@ -1307,6 +1315,8 @@ function TeacherDashboard({ user, onLogout }) {
                 addingPhase={addingPhase} setAddingPhase={setAddingPhase}
                 newTaskText={newTaskText} setNewTaskText={setNewTaskText}
                 saved={saved}
+                reminderPlatform={(() => { try { return JSON.parse(localStorage.getItem("ub_reminder_platform") || '"Its learning"'); } catch { return "Its learning"; } })()}
+                onSetReminder={p => { localStorage.setItem("ub_reminder_platform", JSON.stringify(p)); setSaved(true); setTimeout(() => setSaved(false), 2000); }}
                 onStartEdit={startEdit}
                 onSaveEdit={saveEdit}
                 onCancelEdit={() => setEditingTask(null)}
@@ -1431,7 +1441,7 @@ function WeeklyLogsTeacher({ company, teacherName, mutate }) {
 
 // ─── Admin Editor Component ───────────────────────────────────────────────────
 
-function AdminEditor({ phases, adminTasks, adminPhase, setAdminPhase, editingTask, editText, setEditText, editInfo, setEditInfo, editLink, setEditLink, addingPhase, setAddingPhase, newTaskText, setNewTaskText, saved, onStartEdit, onSaveEdit, onCancelEdit, onDelete, onAdd, onReset }) {
+function AdminEditor({ phases, adminTasks, adminPhase, setAdminPhase, editingTask, editText, setEditText, editInfo, setEditInfo, editLink, setEditLink, addingPhase, setAddingPhase, newTaskText, setNewTaskText, saved, reminderPlatform, onSetReminder, onStartEdit, onSaveEdit, onCancelEdit, onDelete, onAdd, onReset }) {
   const phase = phases.find(p => p.id === adminPhase);
 
   // Get current tasks for this phase (admin overrides or defaults)
@@ -1461,6 +1471,29 @@ function AdminEditor({ phases, adminTasks, adminPhase, setAdminPhase, editingTas
             ✓ Lagret!
           </div>
         )}
+      </div>
+
+      {/* Innleveringsplattform */}
+      <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0", padding: "14px 16px" }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: "#1e293b", marginBottom: 4 }}>📤 Innleveringsplattform</div>
+        <div style={{ fontSize: 12, color: "#64748b", marginBottom: 10 }}>
+          Velg hvilken plattform elevene skal levere oppgavene på. Vises i den gule påminnelsesboksen.
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          {["Its learning", "Teams", "Canvas", "Fronter", "Google Classroom"].map(p => {
+            const current = reminderPlatform || "Its learning";
+            const isSelected = current === p;
+            return (
+              <button key={p} onClick={() => onSetReminder(p)}
+                style={{ padding: "7px 14px", borderRadius: 99, border: `1.5px solid ${isSelected ? "#6366f1" : "#e2e8f0"}`, background: isSelected ? "#eef2ff" : "#f8fafc", color: isSelected ? "#6366f1" : "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                {p}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 12, color: "#94a3b8" }}>
+          Viser: <strong style={{ color: "#6366f1" }}>Husk å levere på {reminderPlatform || "Its learning"}!</strong>
+        </div>
       </div>
 
       {/* Phase selector */}
