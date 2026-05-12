@@ -1168,7 +1168,7 @@ function TeacherDashboard({ user, onLogout }) {
         </div>
       </header>
 
-      <div style={S.appRoot}>
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
         {/* Mobil: vis enten liste ELLER detalj */}
         {(!selected || !selectedCompany) ? (
           /* ── Bedriftsliste ── */
