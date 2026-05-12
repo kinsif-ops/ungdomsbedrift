@@ -729,40 +729,54 @@ function TeacherDashboard({ profile, onLogout }) {
         <button onClick={() => { if (window.confirm("Er du sikker på at du vil logge ut?")) onLogout(); }} style={{ background: "none", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, color: "#64748b", display: "flex", alignItems: "center", gap: 5 }}>⏻ Logg ut</button>
       </header>
 
-      <div style={S.dashLayout}>
-        <aside style={S.sidebar}>
-          <div style={S.sidebarTitle}>Bedrifter ({companies.length})</div>
-          {companies.map(co => {
-            const allT = co._tasks || []
-            const isSelected = selected?.id === co.id
-            const pending = 0 // loaded separately
-            return (
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        {/* Mobil: vis enten liste ELLER detalj */}
+        {!selected ? (
+          /* ── Bedriftsliste ── */
+          <div style={{ flex: 1 }}>
+            <div style={S.sidebarTitle}>Bedrifter ({companies.length})</div>
+            {companies.map(co => (
               <button key={co.id} onClick={() => selectCompany(co)}
-                style={{ ...S.companyCard, background: isSelected ? '#6366f1' : '#fff', color: isSelected ? '#fff' : '#1e293b' }}>
+                style={{ ...S.companyCard, background: '#fff', color: '#1e293b', width: '100%', textAlign: 'left', display: 'block' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>{co.name}</span>
+                  <span style={{ fontWeight: 700, fontSize: 15 }}>{co.name}</span>
+                  <span style={{ fontSize: 11, color: '#94a3b8' }}>{(co.company_members || []).length} elever</span>
                 </div>
-                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 3 }}>{(co.company_members || []).length} elever · {co.code}</div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>Kode: {co.code}</div>
               </button>
-            )
-          })}
-        </aside>
+            ))}
+            {companies.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '48px 16px', color: '#94a3b8' }}>
+                <div style={{ fontSize: 48 }}>📋</div>
+                <p style={{ fontWeight: 600, color: '#1e293b', marginTop: 8 }}>Ingen bedrifter ennå</p>
+                <p style={{ fontSize: 13, marginTop: 4 }}>Elever ved {profile.school} vil dukke opp her</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ── Bedriftsdetalj ── */
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            {/* Tilbake-knapp */}
+            <div style={{ padding: '10px 16px', borderBottom: '1px solid #e2e8f0', background: '#fff', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+              <button onClick={() => setSelected(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, color: '#6366f1', fontWeight: 700, padding: 0 }}>
+                ← Alle bedrifter
+              </button>
+              <span style={{ fontSize: 15, fontWeight: 800, color: '#1e293b' }}>{selected.name}</span>
+            </div>
 
-        <div style={S.dashMain}>
-          {!selected ? (
-            <div style={S.emptyState}><span style={{ fontSize: 48 }}>📋</span><p style={{ fontWeight: 700, color: '#1e293b', marginTop: 8 }}>Velg en bedrift</p></div>
-          ) : (<>
-            <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', marginBottom: 16 }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Faner */}
+            <div style={{ display: 'flex', overflowX: 'auto', borderBottom: '1px solid #e2e8f0', scrollbarWidth: 'none', flexShrink: 0 }}>
               {[{ id: 'tasks', label: '📋 Oppgaver' }, { id: 'crm', label: '👥 CRM' }].map(tab => (
-                <button key={tab.id} onClick={() => setTeacherTab(tab.id)} style={{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: teacherTab === tab.id ? '2px solid #6366f1' : '2px solid transparent', fontWeight: teacherTab === tab.id ? 700 : 500, color: teacherTab === tab.id ? '#6366f1' : '#64748b', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14 }}>{tab.label}</button>
+                <button key={tab.id} onClick={() => setTeacherTab(tab.id)} style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: teacherTab === tab.id ? '2px solid #6366f1' : '2px solid transparent', fontWeight: teacherTab === tab.id ? 700 : 500, color: teacherTab === tab.id ? '#6366f1' : '#64748b', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, whiteSpace: 'nowrap', flexShrink: 0 }}>{tab.label}</button>
               ))}
             </div>
 
-            <div style={S.dashCompanyHeader}>
-              <div><div style={{ fontSize: 20, fontWeight: 800, color: '#1e293b' }}>{selected.name}</div><div style={{ fontSize: 12, color: '#64748b' }}>Kode: {selected.code}</div></div>
-            </div>
-            <div style={S.membersRow}>
-              {(selected.company_members || []).map(m => { const u = m.profiles; if (!u) return null; return <div key={m.user_id} style={S.memberChip}><Avatar name={u.name} size={30} /><div><div style={{ fontSize: 12, fontWeight: 600 }}>{u.name}</div><div style={{ fontSize: 10, color: '#94a3b8' }}>{m.role}</div></div></div> })}
+            {/* Kode og medlemmer */}
+            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Kode: {selected.code}</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+              {(selected.company_members || []).map(m => { const u = m.profiles; if (!u) return null; return <div key={m.user_id} style={S.memberChip}><Avatar name={u.name} size={26} /><div><div style={{ fontSize: 11, fontWeight: 600 }}>{u.name}</div><div style={{ fontSize: 10, color: '#94a3b8' }}>{m.role}</div></div></div> })}
             </div>
 
             {teacherTab === 'tasks' && (<>
@@ -834,7 +848,9 @@ function TeacherDashboard({ profile, onLogout }) {
               </div>
             )}
           </>)}
-        </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
