@@ -847,8 +847,7 @@ function TeacherDashboard({ profile, onLogout }) {
                 {selectedCrm.map(contact => { const st = CRM_STATUSES.find(s => s.id === contact.status); return <div key={contact.id} style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 12px', border: '1px solid #e2e8f0' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 18 }}>{contact.type === 'Bedrift' ? '🏢' : '👤'}</span><div><div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}><span style={{ fontSize: 13, fontWeight: 700 }}>{contact.name}</span><span style={{ fontSize: 11, background: st?.bg, color: st?.color, borderRadius: 99, padding: '1px 7px', fontWeight: 600 }}>{st?.label}</span></div>{contact.note && <div style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>"{contact.note}"</div>}</div></div></div> })}
               </div>
             )}
-          </>)}
-            </div>
+          </div>
           </div>
         )}
       </div>
