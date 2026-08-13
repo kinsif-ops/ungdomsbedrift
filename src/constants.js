@@ -143,6 +143,17 @@ export const CRM_STATUSES = [
   { id: 'tapt',      label: 'Tapt',         color: '#EC4899', bg: '#FFF1F7' },
 ]
 
+// Årsaker til tapt salg. Å tvinge fram et valg her gjør tapte salg om til data
+// elevene kan lære av – uten det forsvinner den mest lærerike informasjonen de har.
+export const LOST_REASONS = [
+  'Fikk aldri svar',
+  'For dyrt',
+  'Valgte konkurrent',
+  'Ikke behov',
+  'Feil tidspunkt',
+  'Annet',
+]
+
 // Viser domenenavnet til en lenke, slik at knappetekster stemmer uansett kilde
 // (ungdomsbedrift.no, ndla.no, youtube.com ...). Faller tilbake til 'nettsiden'.
 export function linkLabel(url) {
