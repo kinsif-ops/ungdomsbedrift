@@ -174,10 +174,10 @@ export async function getTasks(companyId) {
   }))
 }
 
-export async function addTask({ companyId, phase, text, info = null, sortOrder = 999 }) {
+export async function addTask({ companyId, phase, text, info = null, link = null, isSubmission = false, sortOrder = 999 }) {
   const { data, error } = await supabase
     .from('tasks')
-    .insert({ company_id: companyId, phase, text, info, sort_order: sortOrder })
+    .insert({ company_id: companyId, phase, text, info, link, is_submission: isSubmission, sort_order: sortOrder })
     .select()
     .single()
   if (error) throw error
@@ -235,26 +235,84 @@ export async function getCrmContacts(companyId) {
   return data || []
 }
 
+// Bygger en rad med KUN ekte kolonnenavn. Tidligere ble hele objektet spredt
+// inn, slik at camelCase-feltet assignedTo ble sendt som kolonne og PostgREST
+// svarte "Could not find the 'assignedTo' column".
+function toCrmRow(c) {
+  const row = {}
+  if (c.name !== undefined) row.name = c.name
+  if (c.type !== undefined) row.type = c.type
+  if (c.email !== undefined) row.email = c.email || null
+  if (c.phone !== undefined) row.phone = c.phone || null
+  if (c.status !== undefined) row.status = c.status
+  if (c.note !== undefined) row.note = c.note || null
+  if (c.assignedTo !== undefined) row.assigned_to = c.assignedTo || null
+  if (c.valueNok !== undefined) row.value_nok = c.valueNok === '' || c.valueNok == null ? null : Number(c.valueNok)
+  if (c.nextFollowup !== undefined) row.next_followup = c.nextFollowup || null
+  if (c.lastContact !== undefined) row.last_contact = c.lastContact || null
+  // Årsak gir bare mening på tapte kontakter – nullstilles hvis status endres tilbake
+  if (c.status !== undefined) row.lost_reason = c.status === 'tapt' ? (c.lostReason || null) : null
+  return row
+}
+
 export async function upsertCrmContact(companyId, contact) {
-  const { id, ...fields } = contact
+  const { id, previousStatus } = contact
+  const row = toCrmRow(contact)
+
+  // Sist kontakt settes automatisk når statusen faktisk endrer seg
+  if (contact.status !== undefined && contact.status !== previousStatus) {
+    row.last_contact = new Date().toISOString()
+  }
+
   if (id) {
     const { data, error } = await supabase
-      .from('crm_contacts')
-      .update({ ...fields, assigned_to: fields.assignedTo || null })
-      .eq('id', id)
-      .select()
-      .single()
-    if (error) throw error
-    return data
-  } else {
-    const { data, error } = await supabase
-      .from('crm_contacts')
-      .insert({ company_id: companyId, ...fields, assigned_to: fields.assignedTo || null })
-      .select()
-      .single()
+      .from('crm_contacts').update(row).eq('id', id).select().single()
     if (error) throw error
     return data
   }
+  const { data, error } = await supabase
+    .from('crm_contacts')
+    .insert({ company_id: companyId, last_contact: new Date().toISOString(), ...row })
+    .select().single()
+  if (error) throw error
+  return data
+}
+
+// ── CRM-aktiviteter (logg) ────────────────────────────────────────────────────
+
+export async function getCrmActivities(contactId) {
+  const { data, error } = await supabase
+    .from('crm_activities')
+    .select('*')
+    .eq('contact_id', contactId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+export async function addCrmActivity({ contactId, companyId, authorId, authorName, text }) {
+  const { data, error } = await supabase
+    .from('crm_activities')
+    .insert({ contact_id: contactId, company_id: companyId, author_id: authorId, author_name: authorName, text })
+    .select().single()
+  if (error) throw error
+  // Et loggført notat teller som kontakt
+  await supabase.from('crm_contacts')
+    .update({ last_contact: new Date().toISOString() })
+    .eq('id', contactId)
+  return data
+}
+
+// ── CRM på tvers av bedrifter (lærerdashbord) ────────────────────────────────
+
+export async function getCrmForCompanies(companyIds) {
+  if (!companyIds || companyIds.length === 0) return []
+  const { data, error } = await supabase
+    .from('crm_contacts')
+    .select('*')
+    .in('company_id', companyIds)
+  if (error) throw error
+  return data || []
 }
 
 export async function deleteCrmContact(contactId) {
