@@ -1,40 +1,45 @@
 import { useState, useCallback, useEffect } from "react";
 
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
 
-// ─── Oppstart tasks – direkte fra elevbedrift.no/oppstart ────────────────────
-// Sjekklisten på siden har 5 offisielle punkter, supplert med diskusjonsspørsmål,
-// faseplan-nedlasting og Its learning-innlevering.
+// ─── Oppstart tasks – ungdomsbedrift (UB) for videregående skole ─────────────
+// Basert på Ungt Entreprenørskaps faseløp for ungdomsbedrift, supplert med
+// diskusjonsspørsmål, faseplan og innlevering til lærer.
 
 const OPPSTART_TASKS = [
   {
     text: "Vi vet hva en entreprenør er",
-    info: "En entreprenør er en person som starter bedrift for seg selv. Entreprenører finner vi i alle bransjer, og typisk for dem er at de: ser et behov og finner løsninger, tenker nytt og kreativt, har tro på ideen sin, og har mot og vilje til å gjennomføre det de vil.",
-    link: "https://elevbedrift.no/oppstart",
+    info: "En entreprenør er en person som starter og driver en bedrift. Entreprenører finnes i alle bransjer, og felles for dem er at de: ser et behov og finner løsninger, tenker nytt og kreativt, har tro på ideen sin, og har mot og vilje til å gjennomføre. Diskuter i gruppen: Kjenner dere noen som driver egen bedrift? Hva skal til for å tørre å starte for seg selv?",
+    link: "https://ungdomsbedrift.no",
   },
   {
-    text: "Vi vet hva en elevbedrift skal gjøre",
-    info: "En elevbedrift finner et behov eller et problem, lager en god løsning og skaper verdier både for seg selv og andre! Bruk tid i starten på å finne behov og problemer rundt dere – på skolen, i lokalsamfunnet, i byen, i Norge eller i verden. Løsningen er et produkt: en vare eller en tjeneste. Verdiskapingen kan være å tjene penger, hjelpe mennesker (sosialt entreprenørskap) eller skape en mer miljøvennlig verden (grønt entreprenørskap).",
-    link: "https://elevbedrift.no/oppstart",
+    text: "Vi vet hva en ungdomsbedrift er",
+    info: "En ungdomsbedrift er en ekte bedrift som drives av elever gjennom ett skoleår. Dere registrerer bedriften hos Ungt Entreprenørskap, henter inn aksjekapital, har egne roller og et styre, selger til ekte kunder, fører regnskap og avvikler bedriften til slutt. Produktet er en vare eller en tjeneste. Verdiskapingen kan være økonomisk, sosial (hjelpe mennesker) eller grønn (mer miljøvennlig).",
+    link: "https://ungdomsbedrift.no",
   },
   {
     text: "Vi kjenner til FNs bærekraftsmål",
-    info: "Når dere skal ut i arbeidslivet må dere tenke på, og ta hensyn til, helt andre ting enn generasjonene før dere. Det MÅ TENKES NYTT på mange områder. Ved å ta utgangspunkt i ett eller flere av FNs bærekraftsmål kan dere bidra til en litt bedre verden gjennom elevbedriften! Diskuter i gruppen: Hvilke bærekraftsmål synes dere er spennende? Hvilke problemer finnes innenfor disse målene?",
-    link: "https://elevbedrift.no/oppstart",
+    info: "Bedrifter i dag må ta hensyn til helt andre ting enn generasjonene før. Ved å ta utgangspunkt i ett eller flere av FNs bærekraftsmål kan ungdomsbedriften bidra til noe større enn seg selv. Diskuter i gruppen: Hvilke bærekraftsmål engasjerer dere? Hvilke konkrete problemer finnes innenfor disse målene – på skolen, i lokalsamfunnet eller i verden?",
+    link: "https://ungdomsbedrift.no",
   },
   {
-    text: "Vi har fylt ut PLANEN til fase 1",
-    info: "Last ned og fyll inn Faseplan for oppstart fra elevbedrift.no. Planen hjelper dere å strukturere oppstartsfasen og dokumentere hva dere har gjort. Diskuter i gruppen: Hvilke forventinger har dere? Hvordan kan dere finne ut av hva dere har lyst til å gjøre? Kjenner dere noen som driver en bedrift?",
-    link: "https://elevbedrift.no/oppstart",
+    text: "Vi har blitt kjent i gruppa og kartlagt kompetanse",
+    info: "En ungdomsbedrift trenger bredde: noen som liker tall, noen som liker å snakke med folk, noen som liker å lage ting. Gå en runde i gruppen: Hva er du god til? Hva har du lyst til å lære i år? Hva gruer du deg til? Denne samtalen gjør rollefordelingen i etableringsfasen mye enklere.",
+    link: null,
   },
   {
-    text: "Vi har PLAKATEN som viser fasene",
-    info: "Sørg for at gruppen har oversiktsplakaten som viser alle fasene i elevbedrift-årshjulet: Oppstart → Idéutvikling → Etablering → Drift → Avvikling. Plakaten kan lastes ned fra elevbedrift.no og henges opp som en påminnelse om hvor dere er i prosessen.",
-    link: "https://elevbedrift.no/oppstart",
+    text: "Vi har fylt ut faseplanen for oppstart",
+    info: "Last ned og fyll ut faseplanen for oppstartsfasen fra ungdomsbedrift.no. Planen hjelper dere å strukturere fasen og dokumentere hva dere har gjort. Diskuter i gruppen: Hvilke forventninger har dere til året? Hva vil dere sitte igjen med til våren?",
+    link: "https://ungdomsbedrift.no",
   },
   {
-    text: "📤 Send inn til lærer på Its learning",
-    info: "Husk å laste opp dokumentasjon på Its learning når dere er ferdige med oppstartsfasen. Lever Faseplan for oppstart (bokmål eller nynorsk), og eventuelle notater fra gruppediskusjonen. Læreren godkjenner fasen før dere går videre til Idéutvikling.",
+    text: "Vi kjenner årshjulet og de fem fasene",
+    info: "Ungdomsbedriften følger et årshjul: Oppstart → Idéutvikling → Etablering → Drift → Avvikling. Skaff oversikt over hvilke frister som gjelder i år – registrering hos UE, fylkesmesse og avvikling. Heng gjerne opp en oversikt i klasserommet som viser hvor dere er i prosessen.",
+    link: "https://ungdomsbedrift.no",
+  },
+  {
+    text: "📤 Send inn til lærer",
+    info: "Last opp dokumentasjon når dere er ferdige med oppstartsfasen: utfylt faseplan for oppstart, og eventuelle notater fra gruppediskusjonene. Læreren godkjenner fasen før dere går videre til idéutvikling.",
     link: null,
     isSubmission: true,
   },
@@ -63,26 +68,19 @@ const PHASES = [
       { text: "Fullfør forretningsplan", info: "Fyll ut alle delene: produkt/tjeneste, marked, konkurrenter, markedsplan, økonomiplan og organisasjon. Bruk malen fra UE." },
       { text: "Selg aksjer og skaff startkapital", info: "Selg aksjer til medelever, familie og lærere. Typisk pris: 20–50 kr per aksje. Før aksjebok nøye." },
       { text: "Åpne bankkonto / opprett kassabok", info: "Alle inntekter og utgifter skal dokumenteres. Bruk enten en enkel kassabok i Excel eller et regnskapsverktøy." },
-      { text: "Registrer bedriften hos UE", info: "Sørg for at registreringen på elevbedrift.no er fullstendig med alle medlemmer, roller og forretningsidé." },
+      { text: "Registrer bedriften hos UE", info: "Sørg for at registreringen på ungdomsbedrift.no er fullstendig med alle medlemmer, roller, forretningsidé og ansvarlig lærer. Registreringen gir dere organisasjonsnummer og forsikring gjennom UE." },
       { text: "Lag logo og visuell profil", info: "Velg farger og font som passer merkevaren. Gratis verktøy: Canva. Bruk logoen konsekvent på alt materiell." },
       { text: "Sett opp nettside eller sosiale medier", info: "Minst én kanal for å nå kunder. Instagram eller TikTok fungerer godt for unge målgrupper. Nettside kan lages gratis på Wix eller Squarespace." },
     ],
   },
   {
     id: "drift", label: "Drift", emoji: "⚙️", color: "#A855F7", light: "#FAF5FF", border: "#D8B4FE",
-    weeklyTasks: [
+    defaultTasks: [
       { text: "Skriv ukereferat", info: "Skriv kort hva dere har gjort denne uken, hva som gikk bra og hva som var utfordrende. Referatet lagres i historikken.", recurring: true },
       { text: "Oppdater regnskap", info: "Registrer alle inntekter og utgifter fra uken. Husk bilag for alt!", recurring: true },
-      { text: "Post på sosiale medier", info: "Del noe fra bedriften denne uken – produkt, bak-kulissen, kundehistorie eller fremgang.", recurring: true },
+      { text: "Post på sosiale medier", info: "Del noe fra bedriften denne uken – produkt, bak kulissene, kundehistorie eller fremgang.", recurring: true },
       { text: "Oppdater CRM", info: "Gå gjennom kundeoversikten. Er det noen leads som skal følges opp? Nye kunder å legge til?", recurring: true },
       { text: "Teammøte gjennomført", info: "Hold ukentlig møte med agenda. Hvem gjør hva neste uke? Skriv kort referat.", recurring: true },
-    ],
-    defaultTasks: [
-      { text: "Skriv ukereferat", info: "Skriv kort hva dere har gjort denne uken, hva som gikk bra og hva som var utfordrende.", recurring: true },
-      { text: "Oppdater regnskap", info: "Registrer alle inntekter og utgifter fra uken. Husk bilag for alt!", recurring: true },
-      { text: "Post på sosiale medier", info: "Del noe fra bedriften denne uken.", recurring: true },
-      { text: "Oppdater CRM", info: "Følg opp leads og kunder i CRM-oversikten.", recurring: true },
-      { text: "Teammøte gjennomført", info: "Hold ukentlig møte og skriv referat.", recurring: true },
     ],
   },
   {
@@ -131,6 +129,11 @@ function getCurrentYear() { return new Date().getFullYear(); }
 function genCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+// Viser domenenavnet til en lenke, slik at knappeteksten stemmer uansett kilde
+// (ungdomsbedrift.no, ndla.no, youtube.com ...). Faller tilbake til "nettsiden".
+function linkLabel(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return "nettsiden"; }
 }
 function load(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; } }
 function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
@@ -435,6 +438,7 @@ function StudentApp({ user, onLogout }) {
   const [crmModal, setCrmModal] = useState(null);
   const [weeklyLogText, setWeeklyLogText] = useState("");
   const [showLogHistory, setShowLogHistory] = useState(false);
+  const [showTaskHistory, setShowTaskHistory] = useState(false);
 
   const refresh = useCallback(() => setDb(getDB()), []);
   function mutate(fn) { const d = getDB(); fn(d); saveDB(d); refresh(); }
@@ -445,21 +449,24 @@ function StudentApp({ user, onLogout }) {
   const members = company.members.map(m => db.users[m.userId]).filter(Boolean);
   const memberInfo = company.members.find(m => m.userId === user.id);
   const phase = PHASES.find(p => p.id === activePhase);
-  let phaseTasks = company.tasks[activePhase] || [];
+  // Arkiverte ukeoppgaver holdes utenfor de aktive listene og all framdriftstelling.
+  // De vises kun under "Fullført historikk" nederst i drift-fasen.
+  let phaseTasks = (company.tasks[activePhase] || []).filter(t => !t.archived);
   if (filterUserId) phaseTasks = phaseTasks.filter(t => (t.assignedTo || []).includes(filterUserId));
 
-  const totalAll = Object.values(company.tasks).flat().length;
-  const doneAll  = Object.values(company.tasks).flat().filter(t => t.done).length;
+  const allActiveTasks = Object.values(company.tasks).flat().filter(t => !t.archived);
+  const totalAll = allActiveTasks.length;
+  const doneAll  = allActiveTasks.filter(t => t.done).length;
   const overallPct = totalAll === 0 ? 0 : Math.round(doneAll / totalAll * 100);
-  const rawPhaseTasks = company.tasks[activePhase] || [];
+  const rawPhaseTasks = (company.tasks[activePhase] || []).filter(t => !t.archived);
   const phDone = rawPhaseTasks.filter(t => t.done).length;
   const phTotal = rawPhaseTasks.length;
   const phPct = phTotal === 0 ? 0 : Math.round(phDone / phTotal * 100);
   const myPendingTasks = Object.entries(company.tasks).flatMap(([phaseId, tasks]) =>
-    tasks.filter(t => (t.assignedTo || []).includes(user.id) && !t.done).map(t => ({ ...t, phaseId }))
+    tasks.filter(t => !t.archived && (t.assignedTo || []).includes(user.id) && !t.done).map(t => ({ ...t, phaseId }))
   );
   // Pending approval count (done but not yet approved)
-  const pendingApproval = Object.values(company.tasks).flat().filter(t => t.done && !t.approvedBy).length;
+  const pendingApproval = allActiveTasks.filter(t => t.done && !t.approvedBy).length;
 
   function toggleTask(id) {
     mutate(d => {
@@ -481,23 +488,6 @@ function StudentApp({ user, onLogout }) {
       if (!t.assignedTo) t.assignedTo = [];
       if (t.assignedTo.includes(userId)) t.assignedTo = t.assignedTo.filter(id => id !== userId);
       else t.assignedTo.push(userId);
-    });
-  }
-
-  function completeRecurring(taskId) {
-    const week = getWeekNumber();
-    const year = getCurrentYear();
-    mutate(d => {
-      const tasks = d.companies[company.id].tasks.drift;
-      const t = tasks.find(t => t.id === taskId);
-      if (!t) return;
-      // Archive done version with week label
-      const archived = { ...t, id: genId(), text: `${t.text} – uke ${week}`, done: true, doneBy: user.name, approvedBy: null, archived: true, week, year };
-      // Reset current task
-      t.done = false; t.doneBy = null; t.approvedBy = null;
-      // Add archived version after current
-      const idx = tasks.indexOf(t);
-      tasks.splice(idx + 1, 0, archived);
     });
   }
 
@@ -722,7 +712,7 @@ function StudentApp({ user, onLogout }) {
                       {task.link && (
                         <a href={task.link} target="_blank" rel="noopener noreferrer"
                           style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: phase.color, fontWeight: 700, textDecoration: "none", background: "#fff", border: `1px solid ${phase.border}`, padding: "6px 12px", borderRadius: 99 }}>
-                          Les mer på elevbedrift.no →
+                          Les mer på {linkLabel(task.link)} →
                         </a>
                       )}
                     </div>
@@ -757,8 +747,10 @@ function StudentApp({ user, onLogout }) {
             const week = getWeekNumber(); const year = getCurrentYear();
             const existingLog = (company.weeklyLogs || []).find(l => l.week === week && l.year === year);
             const historicLogs = (company.weeklyLogs || []).filter(l => !(l.week === week && l.year === year)).sort((a,b) => b.week - a.week);
-            const archivedTasks = phaseTasks.filter(t => t.archived);
-            const activeTasks = phaseTasks.filter(t => !t.archived);
+            // phaseTasks er allerede filtrert for arkiverte – hent historikken fra rådata
+            const archivedTasks = (company.tasks.drift || [])
+              .filter(t => t.archived)
+              .sort((a, b) => (b.year - a.year) || (b.week - a.week));
 
             return (
               <>
@@ -823,8 +815,11 @@ function StudentApp({ user, onLogout }) {
                 {/* Historiske/arkiverte oppgaver */}
                 {archivedTasks.length > 0 && (
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Fullført historikk</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <button onClick={() => setShowTaskHistory(!showTaskHistory)}
+                      style={{ fontSize: 12, color: "#94a3b8", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0, marginBottom: 6 }}>
+                      {showTaskHistory ? "▲" : "▼"} Fullført historikk ({archivedTasks.length})
+                    </button>
+                    <div style={{ display: showTaskHistory ? "flex" : "none", flexDirection: "column", gap: 4 }}>
                       {archivedTasks.map(t => (
                         <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", background: "#f8fafc", borderRadius: 8, border: "1px solid #f1f5f9" }}>
                           <div style={{ width: 18, height: 18, borderRadius: 5, background: "#22c55e", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -866,12 +861,12 @@ const ALL_BADGES = [
   { id: "etablerer",     emoji: "🏗️", label: "Etablerer",       desc: "Fullført Etablering-fasen",                 check: (co, uid) => (co.tasks.etablering || []).filter(t => t.approvedBy).length >= 4 },
   { id: "drifter",       emoji: "⚙️", label: "Drifter",         desc: "Sendt inn 4 ukelogger",                     check: (co, uid) => (co.weeklyLogs || []).length >= 4 },
   { id: "avvikler",      emoji: "🏁", label: "Avvikler",        desc: "Fullført Avvikling-fasen",                  check: (co, uid) => (co.tasks.avvikling || []).filter(t => t.approvedBy).length >= 3 },
-  { id: "teamspiller",   emoji: "🤝", label: "Teamspiller",     desc: "5+ oppgaver fullført og tilordnet",         check: (co, uid) => Object.values(co.tasks).flat().filter(t => (t.assignedTo||[]).includes(uid) && t.done).length >= 5 },
+  { id: "teamspiller",   emoji: "🤝", label: "Teamspiller",     desc: "5+ oppgaver fullført og tilordnet",         check: (co, uid) => Object.values(co.tasks).flat().filter(t => !t.archived && (t.assignedTo||[]).includes(uid) && t.done).length >= 5 },
   { id: "selger",        emoji: "💰", label: "Selger",          desc: "Registrert første kunde i CRM",             check: (co, uid) => (co.crm || []).some(c => c.status === "kunde") },
   { id: "superselger",   emoji: "🏆", label: "Superselger",     desc: "5+ kunder i CRM",                           check: (co, uid) => (co.crm || []).filter(c => c.status === "kunde").length >= 5 },
   { id: "nettverk",      emoji: "📇", label: "Nettverker",      desc: "5+ kontakter i CRM",                        check: (co, uid) => (co.crm || []).length >= 5 },
   { id: "grounder",      emoji: "🦁", label: "Ekte gründer",    desc: "Alle 5 faser fullført",                     check: (co, uid) => ["oppstart","ideutvikling","etablering","drift","avvikling"].every(p => (co.tasks[p]||[]).some(t => t.approvedBy)) },
-  { id: "flink_elev",    emoji: "⭐", label: "Flink elev",      desc: "10+ oppgaver fullført og godkjent",         check: (co, uid) => Object.values(co.tasks).flat().filter(t => t.approvedBy).length >= 10 },
+  { id: "flink_elev",    emoji: "⭐", label: "Flink elev",      desc: "10+ oppgaver fullført og godkjent",         check: (co, uid) => Object.values(co.tasks).flat().filter(t => !t.archived && t.approvedBy).length >= 10 },
   { id: "logghelt",      emoji: "📝", label: "Logghelt",        desc: "Sendt inn 8 ukelogger",                     check: (co, uid) => (co.weeklyLogs || []).length >= 8 },
   { id: "innovator",     emoji: "🔬", label: "Innovatør",       desc: "Fullført Idéutvikling med prototype",       check: (co, uid) => (co.tasks.ideutvikling || []).filter(t => t.done).length >= 3 },
   { id: "baerekraft",    emoji: "🌱", label: "Bærekraftig",     desc: "Fullført alle bærekraft-oppgaver",          check: (co, uid) => (co.tasks.oppstart || []).filter(t => t.text.includes("bærekraft") && t.done).length >= 1 },
@@ -1148,15 +1143,46 @@ function TeacherDashboard({ user, onLogout }) {
   const companies = myCompanies.length > 0 ? myCompanies : Object.values(db.companies);
   const selectedCompany = selected ? db.companies[selected] : null;
 
+  // Arkiverer en godkjent ukeoppgave og nullstiller originalen til neste uke.
+  // Muterer arrayet direkte – kalleren håndterer lagring.
+  function archiveRecurring(tasks, t) {
+    const week = getWeekNumber(), year = getCurrentYear();
+    const archived = {
+      ...t,
+      id: genId(),
+      text: `${t.text} – uke ${week}`,
+      done: true, approvedBy: user.name, archived: true, recurring: false,
+      week, year,
+    };
+    t.done = false; t.doneBy = null; t.approvedBy = null;
+    tasks.splice(tasks.indexOf(t) + 1, 0, archived);
+  }
+
   function approveTask(companyId, phaseId, taskId) {
     const d = getDB();
-    const t = d.companies[companyId].tasks[phaseId].find(t => t.id === taskId);
-    if (t) { t.approvedBy = t.approvedBy ? null : user.name; }
+    const tasks = d.companies[companyId].tasks[phaseId] || [];
+    const t = tasks.find(t => t.id === taskId);
+    if (!t) return;
+    // Ukentlige driftsoppgaver: godkjenning arkiverer uken og gjør oppgaven klar igjen
+    if (phaseId === "drift" && t.recurring && !t.archived) archiveRecurring(tasks, t);
+    else t.approvedBy = t.approvedBy ? null : user.name;
     saveDB(d); refresh();
   }
 
-  // Count pending approvals per company
-  function pendingCount(co) { return Object.values(co.tasks).flat().filter(t => t.done && !t.approvedBy).length; }
+  function approveWeek(companyId) {
+    const d = getDB();
+    const tasks = d.companies[companyId].tasks.drift || [];
+    const ready = tasks.filter(t => t.recurring && t.done && !t.archived);
+    if (!ready.length) return;
+    if (!window.confirm(`Godkjenne ${ready.length} ukeoppgave(r) og arkivere uken?`)) return;
+    ready.forEach(t => archiveRecurring(tasks, t));
+    saveDB(d); refresh();
+  }
+
+  // Count pending approvals per company (arkiverte oppgaver teller ikke)
+  function pendingCount(co) {
+    return Object.values(co.tasks).flat().filter(t => !t.archived && t.done && !t.approvedBy).length;
+  }
 
   return (
     <div style={S.appRoot}>
@@ -1175,7 +1201,7 @@ function TeacherDashboard({ user, onLogout }) {
           <div style={{ flex: 1, overflowY: "auto" }}>
             <div style={S.sidebarTitle}>Bedrifter ({companies.length})</div>
             {companies.map(co => {
-              const allT = Object.values(co.tasks).flat();
+              const allT = Object.values(co.tasks).flat().filter(t => !t.archived);
               const pct = allT.length === 0 ? 0 : Math.round(allT.filter(t => t.approvedBy).length / allT.length * 100);
               const pending = pendingCount(co);
               return (
@@ -1239,7 +1265,7 @@ function TeacherDashboard({ user, onLogout }) {
 
               <div style={{ display: "flex", gap: 8, overflowX: "auto", marginBottom: 12 }}>
                 {PHASES.map(p => {
-                  const pt = selectedCompany.tasks[p.id] || [];
+                  const pt = (selectedCompany.tasks[p.id] || []).filter(t => !t.archived);
                   const pa = pt.filter(t => t.approvedBy).length;
                   const pendingInPhase = pt.filter(t => t.done && !t.approvedBy).length;
                   const isA = activePhase === p.id;
@@ -1255,8 +1281,29 @@ function TeacherDashboard({ user, onLogout }) {
                 })}
               </div>
 
+              {/* Drift: godkjenn hele uken samlet */}
+              {activePhase === "drift" && (() => {
+                const driftTasks = selectedCompany.tasks.drift || [];
+                const ready = driftTasks.filter(t => t.recurring && t.done && !t.archived).length;
+                const archivedCount = driftTasks.filter(t => t.archived).length;
+                if (!ready && !archivedCount) return null;
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+                    {ready > 0 && (
+                      <button onClick={() => approveWeek(selectedCompany.id)}
+                        style={{ padding: "8px 14px", borderRadius: 99, border: "1.5px solid #A855F7", background: "#FAF5FF", color: "#7c3aed", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                        ✓ Godkjenn hele uken ({ready})
+                      </button>
+                    )}
+                    {archivedCount > 0 && (
+                      <span style={{ fontSize: 11, color: "#94a3b8" }}>{archivedCount} arkiverte ukeoppgaver</span>
+                    )}
+                  </div>
+                );
+              })()}
+
               <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 7 }}>
-                {(selectedCompany.tasks[activePhase] || []).map(task => {
+                {(selectedCompany.tasks[activePhase] || []).filter(t => !t.archived).map(task => {
                   const ph = PHASES.find(p => p.id === activePhase);
                   const assignedUsers = (task.assignedTo || []).map(id => db.users[id]).filter(Boolean);
                   const isApproved = !!task.approvedBy;
@@ -1540,7 +1587,7 @@ function AdminEditor({ phases, adminTasks, adminPhase, setAdminPhase, editingTas
                     <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Lenke (valgfritt)</div>
                     <input value={editLink} onChange={e => setEditLink(e.target.value)}
                       style={{ ...adminInputStyle, marginBottom: 12 }}
-                      placeholder="https://elevbedrift.no/..." />
+                      placeholder="https://ungdomsbedrift.no/ ... eller ndla.no, youtube.com" />
                     <div style={{ display: "flex", gap: 8 }}>
                       <button onClick={onCancelEdit} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "1.5px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, color: "#64748b", fontSize: 13 }}>Avbryt</button>
                       <button onClick={onSaveEdit} style={{ flex: 2, padding: "9px", borderRadius: 10, border: "none", background: "#6366f1", color: "#fff", cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 13 }}>Lagre endringer</button>
