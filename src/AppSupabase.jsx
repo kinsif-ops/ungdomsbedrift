@@ -5,8 +5,8 @@ import { useState, useEffect, useCallback } from 'react'
 import * as db from './db.js'
 import { supabase } from './supabaseClient.js'
 
-const APP_VERSION = '1.0.0'
-import { PHASES, ROLES, CRM_STATUSES, OPPSTART_TASKS } from './constants.js'
+const APP_VERSION = '1.2.0'
+import { PHASES, ROLES, CRM_STATUSES, OPPSTART_TASKS, LOST_REASONS } from './constants.js'
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
@@ -700,9 +700,14 @@ function TeacherDashboard({ profile, onLogout }) {
   const [activePhase, setActivePhase] = useState('oppstart')
   const [teacherTab, setTeacherTab] = useState('tasks')
   const [loading, setLoading] = useState(true)
+  const [allCrm, setAllCrm] = useState([])
 
   useEffect(() => {
-    db.getCompaniesForTeacher(profile.school).then(data => { setCompanies(data); setLoading(false) })
+    db.getCompaniesForTeacher(profile.school).then(async data => {
+      setCompanies(data)
+      try { setAllCrm(await db.getCrmForCompanies(data.map(c => c.id))) } catch { setAllCrm([]) }
+      setLoading(false)
+    })
   }, [profile.school])
 
   async function selectCompany(co) {
@@ -752,6 +757,8 @@ function TeacherDashboard({ profile, onLogout }) {
                 <p style={{ fontSize: 13, marginTop: 4 }}>Elever ved {profile.school} vil dukke opp her</p>
               </div>
             )}
+
+            {allCrm.length > 0 && <SalesOverview companies={companies} allCrm={allCrm} />}
           </div>
         ) : (
           /* ── Bedriftsdetalj ── */
@@ -844,7 +851,37 @@ function TeacherDashboard({ profile, onLogout }) {
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
                   {CRM_STATUSES.map(s => { const count = selectedCrm.filter(c => c.status === s.id).length; return count > 0 ? <div key={s.id} style={{ padding: '5px 12px', borderRadius: 99, background: s.bg, border: `1px solid ${s.color}33` }}><span style={{ fontWeight: 700, color: s.color }}>{count}</span><span style={{ fontSize: 12, color: '#64748b', marginLeft: 4 }}>{s.label}</span></div> : null })}
                 </div>
-                {selectedCrm.map(contact => { const st = CRM_STATUSES.find(s => s.id === contact.status); return <div key={contact.id} style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 12px', border: '1px solid #e2e8f0' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 18 }}>{contact.type === 'Bedrift' ? '🏢' : '👤'}</span><div><div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}><span style={{ fontSize: 13, fontWeight: 700 }}>{contact.name}</span><span style={{ fontSize: 11, background: st?.bg, color: st?.color, borderRadius: 99, padding: '1px 7px', fontWeight: 600 }}>{st?.label}</span></div>{contact.note && <div style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>"{contact.note}"</div>}</div></div></div> })}
+                {selectedCrm.map(contact => {
+                  const st = CRM_STATUSES.find(s => s.id === contact.status)
+                  const od = isOverdue(contact)
+                  const stale = daysSince(contact.last_contact)
+                  return (
+                    <div key={contact.id} style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 12px', border: od ? '1.5px solid #fca5a5' : '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                        <span style={{ fontSize: 18 }}>{contact.type === 'Bedrift' ? '🏢' : '👤'}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 13, fontWeight: 700 }}>{contact.name}</span>
+                            <span style={{ fontSize: 11, background: st?.bg, color: st?.color, borderRadius: 99, padding: '1px 7px', fontWeight: 600 }}>{st?.label}</span>
+                            {contact.value_nok > 0 && <span style={{ fontSize: 11, background: '#f0fdf4', color: '#16a34a', borderRadius: 99, padding: '1px 7px', fontWeight: 700 }}>{formatNok(contact.value_nok)}</span>}
+                          </div>
+                          {contact.next_followup && (
+                            <div style={{ fontSize: 11, marginTop: 3, fontWeight: 700, color: od ? '#dc2626' : '#6366f1' }}>
+                              {od ? '⚠️' : '📅'} Følg opp: {formatFollowup(contact.next_followup)}
+                            </div>
+                          )}
+                          {contact.status === 'tapt' && contact.lost_reason && (
+                            <div style={{ fontSize: 11, color: '#be185d', marginTop: 3, fontWeight: 600 }}>Tapt: {contact.lost_reason}</div>
+                          )}
+                          {contact.note && <div style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic', marginTop: 3 }}>"{contact.note}"</div>}
+                          {stale != null && stale > 14 && !['kunde', 'tapt'].includes(contact.status) && (
+                            <div style={{ fontSize: 11, color: '#dc2626', marginTop: 3 }}>Ingen kontakt på {stale} dager</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -855,57 +892,491 @@ function TeacherDashboard({ profile, onLogout }) {
   )
 }
 
-// ─── CRM Tab ──────────────────────────────────────────────────────────────────
+// ─── Salgsoversikt for lærer ─────────────────────────────────────────────────
+// Viser alle bedriftene side om side. Poenget er å se hvem som står stille
+// uten å måtte klikke seg inn i hver enkelt bedrift.
 
-function CRMTab({ contacts, profile, members, company, onSave, onDelete, crmModal, setCrmModal }) {
-  const [filterStatus, setFilterStatus] = useState(null)
-  const [search, setSearch] = useState('')
-  const filtered = contacts.filter(c => !filterStatus || c.status === filterStatus).filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()))
-  const stats = CRM_STATUSES.map(s => ({ ...s, count: contacts.filter(c => c.status === s.id).length }))
+function SalesOverview({ companies, allCrm }) {
+  const [open, setOpen] = useState(true)
+
+  const rows = companies.map(co => {
+    const cs = allCrm.filter(c => c.company_id === co.id)
+    return {
+      id: co.id,
+      name: co.name,
+      counts: Object.fromEntries(CRM_STATUSES.map(s => [s.id, cs.filter(c => c.status === s.id).length])),
+      pipeline: pipelineValue(cs),
+      won: cs.filter(c => c.status === 'kunde').reduce((sum, c) => sum + (c.value_nok || 0), 0),
+      overdue: cs.filter(isOverdue).length,
+      total: cs.length,
+    }
+  }).filter(r => r.total > 0)
+
+  // Tapt-årsaker samlet for hele klassen – dette er en ferdig undervisningstime
+  const lost = allCrm.filter(c => c.status === 'tapt' && c.lost_reason)
+  const reasonCounts = Object.entries(
+    lost.reduce((acc, c) => { acc[c.lost_reason] = (acc[c.lost_reason] || 0) + 1; return acc }, {})
+  ).sort((a, b) => b[1] - a[1])
+
+  if (rows.length === 0) return null
+
+  const th = { padding: '7px 8px', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.4, textAlign: 'center', whiteSpace: 'nowrap' }
+  const td = { padding: '9px 8px', fontSize: 13, textAlign: 'center', color: '#1e293b', whiteSpace: 'nowrap' }
 
   return (
-    <div style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
-        {stats.map(s => <button key={s.id} onClick={() => setFilterStatus(filterStatus === s.id ? null : s.id)} style={{ padding: '10px 14px', borderRadius: 12, border: `1.5px solid ${filterStatus === s.id ? s.color : '#e2e8f0'}`, background: filterStatus === s.id ? s.bg : '#fff', cursor: 'pointer', textAlign: 'center', minWidth: 90, fontFamily: 'inherit', flexShrink: 0 }}><div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.count}</div><div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>{s.label}</div></button>)}
-      </div>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Søk..." style={{ ...S.input, flex: 1 }} />
-        <button onClick={() => setCrmModal('new')} style={{ ...S.btnSmall, background: '#6366f1', whiteSpace: 'nowrap' }}>+ Ny kontakt</button>
-      </div>
-      {filtered.length === 0 && <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8' }}><div style={{ fontSize: 36 }}>👥</div><div style={{ fontWeight: 600, color: '#1e293b' }}>Ingen kontakter ennå</div></div>}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {filtered.map(contact => { const st = CRM_STATUSES.find(s => s.id === contact.status); const au = members.find(m => m.id === contact.assigned_to); return <div key={contact.id} style={{ background: '#fff', borderRadius: 12, padding: '12px 14px', border: '1px solid #e2e8f0', cursor: 'pointer' }} onClick={() => setCrmModal(contact.id)}><div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}><div style={{ width: 38, height: 38, borderRadius: 10, background: contact.type === 'Bedrift' ? '#fef3c7' : '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{contact.type === 'Bedrift' ? '🏢' : '👤'}</div><div style={{ flex: 1 }}><div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}><span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{contact.name}</span><span style={{ fontSize: 11, background: st?.bg, color: st?.color, borderRadius: 99, padding: '1px 8px', fontWeight: 600 }}>{st?.label}</span></div>{contact.email && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{contact.email}</div>}{contact.note && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3, fontStyle: 'italic' }}>"{contact.note}"</div>}{au && <div style={{ fontSize: 11, color: '#6366f1', marginTop: 4 }}>📌 {au.name.split(' ')[0]}</div>}</div><button onClick={e => { e.stopPropagation(); onDelete(contact.id) }} style={{ ...S.deleteBtn, fontSize: 18 }}>×</button></div></div> })}
-      </div>
-      {crmModal && <CRMModal contact={crmModal === 'new' ? null : contacts.find(c => c.id === crmModal)} members={members} currentUser={profile} onSave={data => onSave({ ...data, id: crmModal !== 'new' ? crmModal : undefined })} onClose={() => setCrmModal(null)} />}
+    <div style={{ margin: '16px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden' }}>
+      <button onClick={() => setOpen(!open)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '13px 16px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+        <span style={{ fontSize: 17 }}>📊</span>
+        <span style={{ fontSize: 14, fontWeight: 800, color: '#1e293b', flex: 1 }}>Salgsoversikt</span>
+        <span style={{ fontSize: 12, color: '#94a3b8' }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div style={{ padding: '0 16px 16px' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                  <th style={{ ...th, textAlign: 'left' }}>Bedrift</th>
+                  {CRM_STATUSES.map(st => <th key={st.id} style={{ ...th, color: st.color }}>{st.label}</th>)}
+                  <th style={th}>Ute</th>
+                  <th style={th}>Solgt</th>
+                  <th style={th}>Forfalt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(r => (
+                  <tr key={r.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ ...td, textAlign: 'left', fontWeight: 700 }}>{r.name}</td>
+                    {CRM_STATUSES.map(st => (
+                      <td key={st.id} style={{ ...td, color: r.counts[st.id] ? st.color : '#cbd5e1', fontWeight: r.counts[st.id] ? 700 : 400 }}>
+                        {r.counts[st.id]}
+                      </td>
+                    ))}
+                    <td style={{ ...td, color: '#F97316', fontWeight: 700 }}>{formatNok(r.pipeline) || '–'}</td>
+                    <td style={{ ...td, color: '#22C55E', fontWeight: 700 }}>{formatNok(r.won) || '–'}</td>
+                    <td style={td}>
+                      {r.overdue > 0
+                        ? <span style={{ background: '#fef2f2', color: '#dc2626', borderRadius: 99, padding: '2px 9px', fontSize: 12, fontWeight: 700 }}>{r.overdue}</span>
+                        : <span style={{ color: '#cbd5e1' }}>0</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {reasonCounts.length > 0 && (
+            <div style={{ marginTop: 16, background: '#FFF1F7', border: '1px solid #F9A8D4', borderRadius: 12, padding: '12px 14px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#be185d', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                Hvorfor taper klassen salg? ({lost.length} tapte)
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {reasonCounts.map(([reason, count]) => (
+                  <div key={reason} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1, fontSize: 13, color: '#1e293b' }}>{reason}</div>
+                    <div style={{ width: 110, height: 7, background: '#fff', borderRadius: 99, overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.round(count / lost.length * 100)}%`, height: '100%', background: '#EC4899' }} />
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#be185d', minWidth: 22, textAlign: 'right' }}>{count}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
-function CRMModal({ contact, members, currentUser, onSave, onClose }) {
-  const [name, setName] = useState(contact?.name || ''); const [type, setType] = useState(contact?.type || 'Privatperson')
-  const [email, setEmail] = useState(contact?.email || ''); const [phone, setPhone] = useState(contact?.phone || '')
-  const [status, setStatus] = useState(contact?.status || 'lead'); const [note, setNote] = useState(contact?.note || '')
+// ─── CRM-hjelpere ─────────────────────────────────────────────────────────────
+
+function todayISO() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// Forfalt = dato i dag eller tidligere. Kontakter uten dato regnes ikke som forfalte.
+function isOverdue(contact) {
+  return !!contact.next_followup && contact.next_followup <= todayISO()
+}
+
+function daysSince(ts) {
+  if (!ts) return null
+  return Math.floor((Date.now() - new Date(ts).getTime()) / 86400000)
+}
+
+function formatFollowup(dateStr) {
+  if (!dateStr) return null
+  const today = todayISO()
+  if (dateStr === today) return 'I dag'
+  const diff = Math.round((new Date(dateStr) - new Date(today)) / 86400000)
+  if (diff === 1) return 'I morgen'
+  if (diff < 0) return `${Math.abs(diff)} d forsinket`
+  if (diff <= 7) return `Om ${diff} dager`
+  return new Date(dateStr).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' })
+}
+
+function formatNok(n) {
+  if (n == null || n === '') return null
+  return new Intl.NumberFormat('nb-NO').format(n) + ' kr'
+}
+
+// Verdi som fortsatt kan bli til salg – tapte og allerede vunne holdes utenfor
+function pipelineValue(contacts) {
+  return contacts
+    .filter(c => ['lead', 'kontaktet', 'tilbud'].includes(c.status))
+    .reduce((sum, c) => sum + (c.value_nok || 0), 0)
+}
+
+// ─── CRM Tab ──────────────────────────────────────────────────────────────────
+
+function CRMTab({ contacts, profile, members, company, onSave, onDelete, crmModal, setCrmModal }) {
+  const [filterStatus, setFilterStatus] = useState(null)
+  const [showOverdue, setShowOverdue] = useState(false)
+  const [search, setSearch] = useState('')
+
+  const overdue = contacts.filter(isOverdue)
+  const stats = CRM_STATUSES.map(s => ({ ...s, count: contacts.filter(c => c.status === s.id).length }))
+  const pipeline = pipelineValue(contacts)
+  const won = contacts.filter(c => c.status === 'kunde').reduce((sum, c) => sum + (c.value_nok || 0), 0)
+
+  const filtered = contacts
+    .filter(c => !showOverdue || isOverdue(c))
+    .filter(c => !filterStatus || c.status === filterStatus)
+    .filter(c => {
+      if (!search) return true
+      const q = search.toLowerCase()
+      return c.name.toLowerCase().includes(q)
+        || (c.email || '').toLowerCase().includes(q)
+        || (c.note || '').toLowerCase().includes(q)
+    })
+    // Forfalte først, deretter nærmeste oppfølging
+    .sort((a, b) => {
+      const ao = isOverdue(a), bo = isOverdue(b)
+      if (ao !== bo) return ao ? -1 : 1
+      if (a.next_followup && b.next_followup) return a.next_followup.localeCompare(b.next_followup)
+      if (a.next_followup) return -1
+      if (b.next_followup) return 1
+      return 0
+    })
+
+  return (
+    <div style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+      {/* Oppfølgingsvarsel – erstatter push-varsler med noe elevene faktisk ser */}
+      {overdue.length > 0 && (
+        <button onClick={() => { setShowOverdue(!showOverdue); setFilterStatus(null) }}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '11px 14px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit',
+                   background: showOverdue ? '#fef2f2' : '#fff7ed', border: `1.5px solid ${showOverdue ? '#fca5a5' : '#fed7aa'}` }}>
+          <span style={{ fontSize: 20 }}>🔔</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#c2410c' }}>
+              {overdue.length} kontakt{overdue.length === 1 ? '' : 'er'} trenger oppfølging
+            </div>
+            <div style={{ fontSize: 11, color: '#9a3412' }}>
+              {showOverdue ? 'Viser kun disse – trykk for å vise alle' : 'Trykk for å se hvilke'}
+            </div>
+          </div>
+        </button>
+      )}
+
+      {/* Pipeline-verdi – kobler CRM til budsjettet fra etableringsfasen */}
+      {(pipeline > 0 || won > 0) && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '10px 14px' }}>
+            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>Ute på tilbud</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#F97316' }}>{formatNok(pipeline) || '0 kr'}</div>
+          </div>
+          <div style={{ flex: 1, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '10px 14px' }}>
+            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>Solgt</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#22C55E' }}>{formatNok(won) || '0 kr'}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Statusfiltre */}
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
+        {stats.map(s => (
+          <button key={s.id} onClick={() => { setFilterStatus(filterStatus === s.id ? null : s.id); setShowOverdue(false) }}
+            style={{ padding: '10px 14px', borderRadius: 12, border: `1.5px solid ${filterStatus === s.id ? s.color : '#e2e8f0'}`, background: filterStatus === s.id ? s.bg : '#fff', cursor: 'pointer', textAlign: 'center', minWidth: 90, fontFamily: 'inherit', flexShrink: 0 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.count}</div>
+            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>{s.label}</div>
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Søk navn, e-post, notat..." style={{ ...S.input, flex: 1 }} />
+        <button onClick={() => setCrmModal('new')} style={{ ...S.btnSmall, background: '#6366f1', whiteSpace: 'nowrap' }}>+ Ny kontakt</button>
+      </div>
+
+      {filtered.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8' }}>
+          <div style={{ fontSize: 36 }}>👥</div>
+          <div style={{ fontWeight: 600, color: '#1e293b' }}>
+            {contacts.length === 0 ? 'Ingen kontakter ennå' : 'Ingen treff'}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {filtered.map(contact => {
+          const st = CRM_STATUSES.find(s => s.id === contact.status)
+          const au = members.find(m => m.id === contact.assigned_to)
+          const od = isOverdue(contact)
+          const stale = daysSince(contact.last_contact)
+          return (
+            <div key={contact.id}
+              style={{ background: '#fff', borderRadius: 12, padding: '12px 14px', cursor: 'pointer',
+                       border: od ? '1.5px solid #fca5a5' : '1px solid #e2e8f0' }}
+              onClick={() => setCrmModal(contact.id)}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: contact.type === 'Bedrift' ? '#fef3c7' : '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                  {contact.type === 'Bedrift' ? '🏢' : '👤'}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{contact.name}</span>
+                    <span style={{ fontSize: 11, background: st?.bg, color: st?.color, borderRadius: 99, padding: '1px 8px', fontWeight: 600 }}>{st?.label}</span>
+                    {contact.value_nok > 0 && (
+                      <span style={{ fontSize: 11, background: '#f0fdf4', color: '#16a34a', borderRadius: 99, padding: '1px 8px', fontWeight: 700 }}>{formatNok(contact.value_nok)}</span>
+                    )}
+                  </div>
+
+                  {contact.next_followup && (
+                    <div style={{ fontSize: 11, marginTop: 4, fontWeight: 700, color: od ? '#dc2626' : '#6366f1' }}>
+                      {od ? '⚠️' : '📅'} Følg opp: {formatFollowup(contact.next_followup)}
+                    </div>
+                  )}
+
+                  {contact.status === 'tapt' && contact.lost_reason && (
+                    <div style={{ fontSize: 11, color: '#be185d', marginTop: 3, fontWeight: 600 }}>Tapt: {contact.lost_reason}</div>
+                  )}
+
+                  {contact.email && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{contact.email}</div>}
+                  {contact.note && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3, fontStyle: 'italic' }}>"{contact.note}"</div>}
+
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                    {au && <span style={{ fontSize: 11, color: '#6366f1' }}>📌 {au.name.split(' ')[0]}</span>}
+                    {stale != null && stale > 0 && !['kunde', 'tapt'].includes(contact.status) && (
+                      <span style={{ fontSize: 11, color: stale > 14 ? '#dc2626' : '#94a3b8' }}>
+                        Sist kontakt: {stale} d siden
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button onClick={e => { e.stopPropagation(); onDelete(contact.id) }} style={{ ...S.deleteBtn, fontSize: 18 }}>×</button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {crmModal && (
+        <CRMModal
+          contact={crmModal === 'new' ? null : contacts.find(c => c.id === crmModal)}
+          members={members}
+          currentUser={profile}
+          company={company}
+          onSave={data => onSave({ ...data, id: crmModal !== 'new' ? crmModal : undefined })}
+          onClose={() => setCrmModal(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function CRMModal({ contact, members, currentUser, company, onSave, onClose }) {
+  const [name, setName] = useState(contact?.name || '')
+  const [type, setType] = useState(contact?.type || 'Privatperson')
+  const [email, setEmail] = useState(contact?.email || '')
+  const [phone, setPhone] = useState(contact?.phone || '')
+  const [status, setStatus] = useState(contact?.status || 'lead')
+  const [note, setNote] = useState(contact?.note || '')
   const [assignedTo, setAssignedTo] = useState(contact?.assigned_to || currentUser.id)
+  const [valueNok, setValueNok] = useState(contact?.value_nok ?? '')
+  const [nextFollowup, setNextFollowup] = useState(contact?.next_followup || '')
+  const [lostReason, setLostReason] = useState(contact?.lost_reason || '')
+
+  // Aktivitetslogg
+  const [activities, setActivities] = useState([])
+  const [newActivity, setNewActivity] = useState('')
+  const [savingActivity, setSavingActivity] = useState(false)
+
+  useEffect(() => {
+    if (!contact?.id) return
+    db.getCrmActivities(contact.id).then(setActivities).catch(() => setActivities([]))
+  }, [contact?.id])
+
+  async function submitActivity() {
+    if (!newActivity.trim() || !contact?.id) return
+    setSavingActivity(true)
+    try {
+      const saved = await db.addCrmActivity({
+        contactId: contact.id,
+        companyId: company.id,
+        authorId: currentUser.id,
+        authorName: currentUser.name,
+        text: newActivity.trim(),
+      })
+      setActivities(prev => [saved, ...prev])
+      setNewActivity('')
+    } catch (e) {
+      alert('Kunne ikke lagre notatet: ' + (e.message || e))
+    } finally {
+      setSavingActivity(false)
+    }
+  }
+
+  // Foreslår oppfølging om én uke – de fleste glemmer å sette dato selv
+  function suggestFollowup(days) {
+    const d = new Date()
+    d.setDate(d.getDate() + days)
+    setNextFollowup(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+  }
+
+  const isLost = status === 'tapt'
+  const isClosed = status === 'kunde' || status === 'tapt'
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 100 }}>
       <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 22px 36px', width: '100%', maxWidth: 520, boxShadow: '0 -8px 40px rgba(0,0,0,0.18)', maxHeight: '92vh', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1e293b', margin: '0 0 18px' }}>{contact ? 'Rediger kontakt' : 'Ny kontakt'}</h2>
-        <form onSubmit={e => { e.preventDefault(); if (!name.trim()) return; onSave({ name, type, email, phone, status, note, assignedTo }) }} style={S.form}>
+
+        <form onSubmit={e => {
+          e.preventDefault()
+          if (!name.trim()) return
+          onSave({
+            name, type, email, phone, status, note, assignedTo,
+            valueNok, nextFollowup, lostReason,
+            previousStatus: contact?.status,
+          })
+        }} style={S.form}>
+
           <input style={S.input} placeholder="Navn *" value={name} onChange={e => setName(e.target.value)} required autoFocus />
-          <div style={{ display: 'flex', gap: 8 }}>{['Privatperson', 'Bedrift'].map(t => <button type="button" key={t} onClick={() => setType(t)} style={{ flex: 1, padding: '10px', borderRadius: 10, border: `1.5px solid ${type === t ? '#6366f1' : '#e2e8f0'}`, background: type === t ? '#eef2ff' : '#f8fafc', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: type === t ? '#6366f1' : '#64748b', cursor: 'pointer' }}>{t === 'Bedrift' ? '🏢 Bedrift' : '👤 Privatperson'}</button>)}</div>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            {['Privatperson', 'Bedrift'].map(t => (
+              <button type="button" key={t} onClick={() => setType(t)}
+                style={{ flex: 1, padding: '10px', borderRadius: 10, border: `1.5px solid ${type === t ? '#6366f1' : '#e2e8f0'}`, background: type === t ? '#eef2ff' : '#f8fafc', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: type === t ? '#6366f1' : '#64748b', cursor: 'pointer' }}>
+                {t === 'Bedrift' ? '🏢 Bedrift' : '👤 Privatperson'}
+              </button>
+            ))}
+          </div>
+
           <input style={S.input} placeholder="E-post" type="email" value={email} onChange={e => setEmail(e.target.value)} />
           <input style={S.input} placeholder="Telefon" value={phone} onChange={e => setPhone(e.target.value)} />
+
           <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Status</div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{CRM_STATUSES.map(s => <button type="button" key={s.id} onClick={() => setStatus(s.id)} style={{ padding: '5px 12px', borderRadius: 99, border: `1.5px solid ${status === s.id ? s.color : '#e2e8f0'}`, background: status === s.id ? s.bg : '#f8fafc', color: status === s.id ? s.color : '#94a3b8', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>{s.label}</button>)}</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {CRM_STATUSES.map(s => (
+              <button type="button" key={s.id} onClick={() => setStatus(s.id)}
+                style={{ padding: '5px 12px', borderRadius: 99, border: `1.5px solid ${status === s.id ? s.color : '#e2e8f0'}`, background: status === s.id ? s.bg : '#f8fafc', color: status === s.id ? s.color : '#94a3b8', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Årsak vises kun ved tapt – tapte salg er den mest lærerike dataen dere har */}
+          {isLost && (
+            <div style={{ background: '#FFF1F7', border: '1px solid #F9A8D4', borderRadius: 12, padding: '12px 14px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#be185d', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Hvorfor ble det ikke salg?</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {LOST_REASONS.map(r => (
+                  <button type="button" key={r} onClick={() => setLostReason(r)}
+                    style={{ padding: '5px 11px', borderRadius: 99, border: `1.5px solid ${lostReason === r ? '#EC4899' : '#e2e8f0'}`, background: lostReason === r ? '#fff' : '#f8fafc', color: lostReason === r ? '#be185d' : '#94a3b8', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Verdi (kr)</div>
+          <input style={S.input} type="number" min="0" inputMode="numeric" placeholder="Hva er dette salget verdt?" value={valueNok} onChange={e => setValueNok(e.target.value)} />
+
+          {/* Oppfølgingsdato – uten denne blir "Kontaktet" en blindvei */}
+          {!isClosed && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Neste oppfølging</div>
+              <input style={S.input} type="date" value={nextFollowup} onChange={e => setNextFollowup(e.target.value)} />
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {[{ l: 'Om 3 dager', d: 3 }, { l: 'Om 1 uke', d: 7 }, { l: 'Om 2 uker', d: 14 }].map(o => (
+                  <button type="button" key={o.d} onClick={() => suggestFollowup(o.d)}
+                    style={{ padding: '5px 11px', borderRadius: 99, border: '1.5px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {o.l}
+                  </button>
+                ))}
+                {nextFollowup && (
+                  <button type="button" onClick={() => setNextFollowup('')}
+                    style={{ padding: '5px 11px', borderRadius: 99, border: '1.5px solid #e2e8f0', background: '#fff', color: '#94a3b8', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Fjern
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+
           <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Ansvarlig</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{members.map(m => { const checked = assignedTo === m.id; return <button type="button" key={m.id} onClick={() => setAssignedTo(checked ? '' : m.id)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 12px', borderRadius: 99, border: `1.5px solid ${checked ? '#6366f1' : '#e2e8f0'}`, background: checked ? '#eef2ff' : '#f8fafc', cursor: 'pointer', fontFamily: 'inherit' }}><Avatar name={m.name} size={22} /><span style={{ fontSize: 12, fontWeight: 600, color: checked ? '#6366f1' : '#1e293b' }}>{m.name.split(' ')[0]}</span></button> })}</div>
-          <textarea style={{ ...S.input, minHeight: 70, resize: 'vertical' }} placeholder="Notat..." value={note} onChange={e => setNote(e.target.value)} />
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {members.map(m => {
+              const checked = assignedTo === m.id
+              return (
+                <button type="button" key={m.id} onClick={() => setAssignedTo(checked ? '' : m.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 12px', borderRadius: 99, border: `1.5px solid ${checked ? '#6366f1' : '#e2e8f0'}`, background: checked ? '#eef2ff' : '#f8fafc', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <Avatar name={m.name} size={22} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: checked ? '#6366f1' : '#1e293b' }}>{m.name.split(' ')[0]}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          <textarea style={{ ...S.input, minHeight: 60, resize: 'vertical' }} placeholder="Kort notat (vises i lista)..." value={note} onChange={e => setNote(e.target.value)} />
+
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" onClick={onClose} style={{ flex: 1, padding: '11px', borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, color: '#64748b' }}>Avbryt</button>
             <button type="submit" style={{ ...S.btnPrimary, flex: 2, marginTop: 0 }}>Lagre</button>
           </div>
         </form>
+
+        {/* Aktivitetslogg – kun for lagrede kontakter */}
+        {contact?.id && (
+          <div style={{ marginTop: 22, borderTop: '1px solid #e2e8f0', paddingTop: 18 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
+              Logg ({activities.length})
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input style={{ ...S.input, flex: 1 }} placeholder="Hva skjedde? F.eks. «Ringte, ba om tilbud»"
+                value={newActivity} onChange={e => setNewActivity(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submitActivity() } }} />
+              <button type="button" onClick={submitActivity} disabled={!newActivity.trim() || savingActivity}
+                style={{ ...S.btnSmall, background: '#6366f1', opacity: newActivity.trim() ? 1 : 0.5, whiteSpace: 'nowrap' }}>
+                {savingActivity ? '...' : 'Legg til'}
+              </button>
+            </div>
+
+            {activities.length === 0 && (
+              <div style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>
+                Ingen logg ennå. Skriv ned hva som skjer, så har dere hele kundereisen når årsrapporten skal skrives.
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {activities.map(a => (
+                <div key={a.id} style={{ background: '#f8fafc', borderRadius: 10, padding: '9px 12px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 13, color: '#1e293b', lineHeight: 1.5 }}>{a.text}</div>
+                  <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }}>
+                    {a.author_name || 'Ukjent'} · {new Date(a.created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
