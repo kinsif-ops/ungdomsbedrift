@@ -1,6 +1,8 @@
 // ─── Ungdomsbedrift Service Worker ───────────────────────────────────────────
-// Versjon må oppdateres når du gjør store endringer (tvinger ny cache)
-const CACHE_VERSION = 'ub-v1.0.0';
+// Versjon må oppdateres når du gjør store endringer. Bumping av versjonen
+// sletter gamle cacher i activate-steget – ellers vokser DYNAMIC_CACHE i det
+// uendelige, siden Vite lager nytt filnavn (hash) for hver eneste bygging.
+const CACHE_VERSION = 'ub-v1.1.0';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 
@@ -16,9 +18,13 @@ const STATIC_ASSETS = [
 // ── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then(cache => {
-      return cache.addAll(STATIC_ASSETS);
-    }).then(() => self.skipWaiting())
+    caches.open(STATIC_CACHE)
+      // addAll feiler alt-eller-ingenting: én manglende fil hindrer installasjon.
+      // addAll per fil gjør installasjonen robust mot at én ikon-fil mangler.
+      .then(cache => Promise.all(
+        STATIC_ASSETS.map(url => cache.add(url).catch(() => null))
+      ))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -35,26 +41,34 @@ self.addEventListener('activate', event => {
   );
 });
 
-// ── Fetch – network first, fall back to cache ─────────────────────────────────
+// ── Fetch – network first for HTML, cache first for assets ───────────────────
 self.addEventListener('fetch', event => {
   const { request } = event;
-  const url = new URL(request.url);
+
+  // Bare GET kan caches – cache.put() kaster feil på POST/PUT/DELETE
+  if (request.method !== 'GET') return;
+
+  let url;
+  try { url = new URL(request.url); } catch { return; }
 
   // Ikke cache API-kall til Supabase – de skal alltid gå til nett
-  if (url.hostname.includes('supabase.co')) {
-    return;
-  }
+  if (url.hostname.includes('supabase.co')) return;
 
-  // For navigasjonsforespørsler (HTML) – network first
+  // Ikke cache på tvers av opphav (CDN-er o.l.) – gir ugjennomsiktige svar
+  if (url.origin !== self.location.origin) return;
+
+  // For navigasjonsforespørsler (HTML) – network first, cache som reserve
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then(response => {
-          const clone = response.clone();
-          caches.open(STATIC_CACHE).then(cache => cache.put(request, clone));
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(STATIC_CACHE).then(cache => cache.put(request, clone));
+          }
           return response;
         })
-        .catch(() => caches.match('/index.html'))
+        .catch(() => caches.match('/index.html').then(r => r || Response.error()))
     );
     return;
   }
@@ -66,20 +80,27 @@ self.addEventListener('fetch', event => {
   ) {
     event.respondWith(
       caches.match(request).then(cached => {
-        const networkFetch = fetch(request).then(response => {
-          caches.open(DYNAMIC_CACHE).then(cache => cache.put(request, response.clone()));
-          return response;
-        });
+        const networkFetch = fetch(request)
+          .then(response => {
+            // Bare cache vellykkede svar – ellers havner 404-er i cachen
+            if (response.ok) {
+              const clone = response.clone();
+              caches.open(DYNAMIC_CACHE).then(cache => cache.put(request, clone));
+            }
+            return response;
+          })
+          // Uten catch gir offline-bruk "Uncaught (in promise)" i konsollen
+          .catch(() => cached || Response.error());
         return cached || networkFetch;
       })
     );
-    return;
   }
 });
 
 // ── Push-varsler (fremtidig bruk) ─────────────────────────────────────────────
 self.addEventListener('push', event => {
-  const data = event.data?.json() ?? {};
+  let data = {};
+  try { data = event.data?.json() ?? {}; } catch { data = {}; }
   event.waitUntil(
     self.registration.showNotification(data.title || 'Ungdomsbedrift', {
       body: data.body || 'Du har en ny oppdatering',
