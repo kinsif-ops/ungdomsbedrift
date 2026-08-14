@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 import * as db from './db.js'
 import { supabase } from './supabaseClient.js'
 
-const APP_VERSION = '1.4.0'
+const APP_VERSION = '1.5.0'
 import { PHASES, ROLES, CRM_STATUSES, OPPSTART_TASKS, LOST_REASONS } from './constants.js'
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
@@ -665,6 +665,7 @@ function StudentApp({ profile, onLogout }) {
 
   return (
     <div style={S.appRoot}>
+      <div style={S.headerWrap}>
       <header style={S.header}>
         <div>
           <div style={S.appTitle}>{company.name}</div>
@@ -678,6 +679,7 @@ function StudentApp({ profile, onLogout }) {
           <button onClick={() => { if (window.confirm("Er du sikker på at du vil logge ut?")) onLogout(); }} style={{ background: "none", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, color: "#64748b", display: "flex", alignItems: "center", gap: 5 }}>⏻ Logg ut</button>
         </div>
       </header>
+      </div>
 
       {showInfo && (
         <div style={S.settingsPanel}>
@@ -695,13 +697,16 @@ function StudentApp({ profile, onLogout }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '0 16px' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0' }}>
+      <div style={{ display: 'flex', padding: '0 16px', maxWidth: CONTENT_W, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
         {[{ id: 'tasks', label: '📋 Oppgaver' }, { id: 'crm', label: '👥 CRM' }].map(tab => (
           <button key={tab.id} onClick={() => setMainTab(tab.id)} style={{ padding: '12px 16px', background: 'none', border: 'none', borderBottom: mainTab === tab.id ? '2px solid #6366f1' : '2px solid transparent', fontWeight: mainTab === tab.id ? 700 : 500, color: mainTab === tab.id ? '#6366f1' : '#64748b', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14 }}>{tab.label}</button>
         ))}
       </div>
+      </div>
 
       {mainTab === 'tasks' && <>
+        <div style={S.navWrap}>
         <nav style={S.nav}>
           {PHASES.map(p => {
             const st = phaseState[p.id]
@@ -729,6 +734,7 @@ function StudentApp({ profile, onLogout }) {
             )
           })}
         </nav>
+        </div>
 
         <main style={S.main}>
 
@@ -965,10 +971,12 @@ function TeacherDashboard({ profile, onLogout }) {
 
   return (
     <div style={S.appRoot}>
+      <div style={S.headerWrap}>
       <header style={S.header}>
         <div><div style={S.appTitle}>Lærerdashbord 👩‍🏫</div><div style={S.appSub}>{profile.name} · {profile.school}</div></div>
         <button onClick={() => { if (window.confirm("Er du sikker på at du vil logge ut?")) onLogout(); }} style={{ background: "none", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, color: "#64748b", display: "flex", alignItems: "center", gap: 5 }}>⏻ Logg ut</button>
       </header>
+      </div>
 
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         {/* Mobil: vis enten liste ELLER detalj */}
@@ -1740,6 +1748,10 @@ function DonutChart({ pct, color, size = 44, textColor }) {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
+// Maksbredde for hovedinnholdet. Under denne bredden (mobil) har den ingen
+// effekt – den hindrer bare at innholdet strekkes ut på store skjermer.
+const CONTENT_W = 820
+
 const S = {
   authBg: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: 20, boxSizing: 'border-box' },
   authCard: { background: '#fff', borderRadius: 24, padding: '36px 32px', width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', position: 'relative' },
@@ -1761,13 +1773,18 @@ const S = {
   divider: { display: 'flex', alignItems: 'center', gap: 8 },
   dividerText: { fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' },
   appRoot: { fontFamily: "'Nunito','Segoe UI',sans-serif", minHeight: '100vh', background: '#f1f5f9', display: 'flex', flexDirection: 'column' },
-  header: { background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 },
+  // Innholdet holdes til lesbar bredde og sentreres. Uten dette strekker
+  // oppgaveradene seg over hele skjermen på PC, slik at avhukingsboksen og
+  // knappene havner over en meter fra hverandre.
+  header: { background: '#fff', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10, padding: '14px 18px', maxWidth: CONTENT_W, width: '100%', margin: '0 auto', boxSizing: 'border-box' },
+  headerWrap: { background: '#fff', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 10, borderTop: '3px solid transparent', borderImage: 'linear-gradient(90deg, #667eea, #764ba2) 1' },
   appTitle: { fontSize: 17, fontWeight: 800, color: '#1e293b', letterSpacing: '-0.3px' },
   appSub: { fontSize: 11, color: '#94a3b8', marginTop: 1 },
   iconBtn: { background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', padding: 4, borderRadius: 8 },
-  nav: { display: 'flex', gap: 8, padding: '12px 16px', overflowX: 'auto', background: '#fff', borderBottom: '1px solid #e2e8f0', scrollbarWidth: 'none' },
+  navWrap: { background: '#fff', borderBottom: '1px solid #e2e8f0' },
+  nav: { display: 'flex', gap: 8, padding: '12px 16px', overflowX: 'auto', scrollbarWidth: 'none', maxWidth: CONTENT_W, width: '100%', margin: '0 auto', boxSizing: 'border-box' },
   tab: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 14px', borderRadius: 14, border: '2px solid', cursor: 'pointer', minWidth: 76, flexShrink: 0, transition: 'all 0.2s ease', fontFamily: 'inherit', position: 'relative' },
-  main: { flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 },
+  main: { flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', gap: 12, maxWidth: CONTENT_W, width: '100%', margin: '0 auto', boxSizing: 'border-box' },
   phaseHeader: { borderRadius: 16, border: '1.5px solid', padding: '14px 16px' },
   progressBar: { flex: 1, height: 8, background: '#e2e8f0', borderRadius: 99, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 99, transition: 'width 0.4s ease' },
