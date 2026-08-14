@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 import * as db from './db.js'
 import { supabase } from './supabaseClient.js'
 
-const APP_VERSION = '1.3.1'
+const APP_VERSION = '1.4.0'
 import { PHASES, ROLES, CRM_STATUSES, OPPSTART_TASKS, LOST_REASONS } from './constants.js'
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
@@ -1260,6 +1260,23 @@ function formatNok(n) {
   return new Intl.NumberFormat('nb-NO').format(n) + ' kr'
 }
 
+// Konverteringsrate: hvor stor andel av de AVSLUTTEDE sakene som ble salg.
+// Kontakter som fortsatt er i spill holdes utenfor – ellers straffes elevene
+// for å ha mange varme leads, og tallet blir kunstig lavt tidlig i året.
+function conversion(contacts) {
+  const won = contacts.filter(c => c.status === 'kunde').length
+  const lost = contacts.filter(c => c.status === 'tapt').length
+  const closed = won + lost
+  return {
+    won, lost, closed,
+    open: contacts.length - closed,
+    rate: closed === 0 ? null : Math.round(won / closed * 100),
+    avgValue: won === 0 ? 0 : Math.round(
+      contacts.filter(c => c.status === 'kunde').reduce((sum, c) => sum + (c.value_nok || 0), 0) / won
+    ),
+  }
+}
+
 // Verdi som fortsatt kan bli til salg – tapte og allerede vunne holdes utenfor
 function pipelineValue(contacts) {
   return contacts
@@ -1273,11 +1290,27 @@ function CRMTab({ contacts, profile, members, company, onSave, onDelete, crmModa
   const [filterStatus, setFilterStatus] = useState(null)
   const [showOverdue, setShowOverdue] = useState(false)
   const [search, setSearch] = useState('')
+  const [quickName, setQuickName] = useState('')
+  const [quickSaving, setQuickSaving] = useState(false)
+
+  // Lagrer med kun navn. Resten fylles ut når eleven har tid – poenget er at
+  // navnet ikke går tapt i øyeblikket det dukker opp.
+  async function quickAdd() {
+    if (!quickName.trim() || quickSaving) return
+    setQuickSaving(true)
+    try {
+      await onSave({ name: quickName.trim(), type: 'Privatperson', status: 'lead', assignedTo: profile.id })
+      setQuickName('')
+    } finally {
+      setQuickSaving(false)
+    }
+  }
 
   const overdue = contacts.filter(isOverdue)
   const stats = CRM_STATUSES.map(s => ({ ...s, count: contacts.filter(c => c.status === s.id).length }))
   const pipeline = pipelineValue(contacts)
   const won = contacts.filter(c => c.status === 'kunde').reduce((sum, c) => sum + (c.value_nok || 0), 0)
+  const conv = conversion(contacts)
 
   const filtered = contacts
     .filter(c => !showOverdue || isOverdue(c))
@@ -1319,6 +1352,42 @@ function CRMTab({ contacts, profile, members, company, onSave, onDelete, crmModa
         </button>
       )}
 
+      {/* Konvertering – kompetansemålet gjort synlig med elevenes egne tall */}
+      {conv.closed > 0 && (
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '14px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <DonutChart pct={conv.rate} color={conv.rate >= 25 ? '#22C55E' : conv.rate >= 10 ? '#F97316' : '#94a3b8'} size={58} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#1e293b' }}>
+                Dere lander {conv.rate} % av salgene
+              </div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, lineHeight: 1.5 }}>
+                {conv.won} solgt · {conv.lost} tapt{conv.open > 0 && ` · ${conv.open} fortsatt i spill`}
+                {conv.avgValue > 0 && <><br/>Snitt per kunde: {formatNok(conv.avgValue)}</>}
+              </div>
+            </div>
+          </div>
+
+          {/* Sammenligningen gjør et lavt tall til en normal ting, ikke et nederlag */}
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e2e8f0', lineHeight: 1.6 }}>
+            {conv.rate >= 40
+              ? '💪 Det er sterkt. Selger dere for billig, eller er produktet virkelig treffsikkert?'
+              : conv.rate >= 20
+              ? '👍 Godt over det som er vanlig ved kaldsalg (2–5 %).'
+              : conv.rate >= 5
+              ? 'Omtrent som proffe selgere får til på kalde kunder. Hva skiller de dere landet fra de dere mistet?'
+              : 'Lavt foreløpig. Se på tapsårsakene – er det produktet, prisen eller oppfølgingen?'}
+          </div>
+
+          {conv.open > 0 && pipeline > 0 && conv.rate != null && (
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 8, background: '#f8fafc', borderRadius: 8, padding: '8px 10px' }}>
+              Dere har {formatNok(pipeline)} ute. Med {conv.rate} % treff er det realistisk{' '}
+              <strong style={{ color: '#F97316' }}>{formatNok(Math.round(pipeline * conv.rate / 100))}</strong>.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Pipeline-verdi – kobler CRM til budsjettet fra etableringsfasen */}
       {(pipeline > 0 || won > 0) && (
         <div style={{ display: 'flex', gap: 8 }}>
@@ -1344,17 +1413,50 @@ function CRMTab({ contacts, profile, members, company, onSave, onDelete, crmModa
         ))}
       </div>
 
+      {/* Hurtiglagring – ett felt. Terskelen må være under tre sekunder, ellers
+          blir CRM-en ikke brukt når elevene faktisk står midt i et salg. */}
       <div style={{ display: 'flex', gap: 8 }}>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Søk navn, e-post, notat..." style={{ ...S.input, flex: 1 }} />
-        <button onClick={() => setCrmModal('new')} style={{ ...S.btnSmall, background: '#6366f1', whiteSpace: 'nowrap' }}>+ Ny kontakt</button>
+        <input
+          value={quickName}
+          onChange={e => setQuickName(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); quickAdd() } }}
+          placeholder="+ Skriv et navn og trykk Enter"
+          style={{ ...S.input, flex: 1 }} />
+        <button onClick={quickAdd} disabled={!quickName.trim() || quickSaving}
+          style={{ ...S.btnSmall, background: '#6366f1', whiteSpace: 'nowrap', opacity: quickName.trim() ? 1 : 0.5 }}>
+          {quickSaving ? '...' : 'Legg til'}
+        </button>
       </div>
 
-      {filtered.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8' }}>
-          <div style={{ fontSize: 36 }}>👥</div>
-          <div style={{ fontWeight: 600, color: '#1e293b' }}>
-            {contacts.length === 0 ? 'Ingen kontakter ennå' : 'Ingen treff'}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Søk navn, e-post, notat..." style={{ ...S.input, flex: 1 }} />
+        <button onClick={() => setCrmModal('new')} style={{ ...S.btnSmall, background: '#f1f5f9', color: '#475569', whiteSpace: 'nowrap' }}>Alle felt</button>
+      </div>
+
+      {/* Tom liste: de fleste ungdomsbedrifter stopper på den første telefonen,
+          ikke på produktet. Derfor leder vi dem til hvem de allerede kjenner. */}
+      {contacts.length === 0 && (
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '20px 18px' }}>
+          <div style={{ fontSize: 32, textAlign: 'center' }}>👥</div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#1e293b', textAlign: 'center', marginTop: 6 }}>
+            Hvem kjenner dere allerede?
           </div>
+          <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6, textAlign: 'center', margin: '8px 0 14px' }}>
+            De første kundene er nesten aldri fremmede. Skriv opp ti navn nå –
+            dere trenger ikke ringe dem ennå.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+            {['Familie', 'Naboer', 'Lærere på skolen', 'Foreldres jobb', 'Idrettslag', 'Lokale butikker', 'Venner av familien', 'Korps eller kor'].map(t => (
+              <span key={t} style={{ fontSize: 12, background: '#f1f5f9', color: '#475569', borderRadius: 99, padding: '5px 11px' }}>{t}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {contacts.length > 0 && filtered.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8' }}>
+          <div style={{ fontSize: 36 }}>🔍</div>
+          <div style={{ fontWeight: 600, color: '#1e293b' }}>Ingen treff</div>
         </div>
       )}
 
