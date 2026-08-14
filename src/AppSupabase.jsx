@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 import * as db from './db.js'
 import { supabase } from './supabaseClient.js'
 
-const APP_VERSION = '1.3.0'
+const APP_VERSION = '1.3.1'
 import { PHASES, ROLES, CRM_STATUSES, OPPSTART_TASKS, LOST_REASONS } from './constants.js'
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
@@ -516,6 +516,26 @@ function StudentApp({ profile, onLogout }) {
   const [crmModal, setCrmModal] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  // Godkjenningssporing. MÅ ligge her, over alle tidlige return-er – React
+  // krever at samme antall hooks kjøres ved hver render.
+  const seenKey = `ub_seen_approved_${profile.id}`
+  const [seenApproved, setSeenApproved] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(seenKey) || '[]')) } catch { return new Set() }
+  })
+  const [firstLoad, setFirstLoad] = useState(true)
+
+  useEffect(() => {
+    if (tasks.length === 0) return
+    const ids = tasks.filter(t => t.approved_by).map(t => t.id)
+    // Ved aller første innlogging kvitterer vi stille, ellers får en elev som
+    // blir med i en godt i gang-gruppe en banner om 30 gamle godkjenninger.
+    if (firstLoad && ids.length > 0 && seenApproved.size === 0) {
+      localStorage.setItem(seenKey, JSON.stringify(ids))
+      setSeenApproved(new Set(ids))
+    }
+    setFirstLoad(false)
+  }, [tasks]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const loadData = useCallback(async () => {
     if (!profile.company_id) { setLoading(false); return }
     try {
@@ -627,27 +647,9 @@ function StudentApp({ profile, onLogout }) {
   }
 
   // ── Nytt siden sist ─────────────────────────────────────────────────────────
-  // Realtime gir oss godkjenninger med én gang, men eleven ser dem bare hvis de
-  // tilfeldigvis kikker på riktig rad. Vi sammenligner mot en liste over
-  // oppgave-ID-er eleven allerede har kvittert for, lagret lokalt per bruker.
-  const seenKey = `ub_seen_approved_${profile.id}`
+  // Hookene ligger øverst i komponenten (før tidlige return-er). Her utledes
+  // bare verdier – ingen hooks, så rekkefølgen er trygg.
   const approvedIds = tasks.filter(t => t.approved_by).map(t => t.id)
-
-  const [seenApproved, setSeenApproved] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem(seenKey) || '[]')) } catch { return new Set() }
-  })
-  const [firstLoad, setFirstLoad] = useState(true)
-
-  useEffect(() => {
-    // Ved aller første innlogging kvitterer vi stille, ellers får eleven
-    // en banner om 30 oppgaver som ble godkjent for lenge siden.
-    if (firstLoad && approvedIds.length > 0 && seenApproved.size === 0) {
-      localStorage.setItem(seenKey, JSON.stringify(approvedIds))
-      setSeenApproved(new Set(approvedIds))
-    }
-    if (tasks.length > 0) setFirstLoad(false)
-  }, [tasks.length]) // eslint-disable-line react-hooks/exhaustive-deps
-
   const newlyApproved = tasks.filter(t => t.approved_by && !seenApproved.has(t.id))
 
   function dismissApproved() {
