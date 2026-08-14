@@ -27,6 +27,23 @@ export async function signIn({ email, password }) {
   return data.user
 }
 
+// Sender e-post med lenke til nytt passord. redirectTo må ligge under
+// "Redirect URLs" i Supabase → Authentication → URL Configuration,
+// ellers avvises lenken når eleven klikker på den.
+export async function requestPasswordReset(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/?nyttpassord=1`,
+  })
+  if (error) throw error
+}
+
+// Brukes etter at eleven har klikket lenken i e-posten. Supabase har da
+// opprettet en midlertidig sesjon, så updateUser treffer riktig bruker.
+export async function updatePassword(newPassword) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) throw error
+}
+
 export async function signOut() {
   await supabase.auth.signOut()
 }
