@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 import * as db from './db.js'
 import { supabase } from './supabaseClient.js'
 
-const APP_VERSION = '1.2.0'
+const APP_VERSION = '1.3.0'
 import { PHASES, ROLES, CRM_STATUSES, OPPSTART_TASKS, LOST_REASONS } from './constants.js'
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
@@ -16,6 +16,11 @@ export default function App() {
   const [profile, setProfile] = useState(null) // profiles row
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState('login')    // login | register
+  // Eleven kommer hit via lenken i e-posten. Supabase har da laget en
+  // midlertidig sesjon, så vi må vise passordskjemaet FØR vanlig ruting.
+  const [resetMode, setResetMode] = useState(
+    () => new URLSearchParams(window.location.search).get('nyttpassord') === '1'
+  )
 
   useEffect(() => {
     db.getSession().then(s => {
@@ -49,6 +54,14 @@ export default function App() {
   }
 
   if (loading) return <LoadingScreen />
+
+  if (resetMode) {
+    return <NewPassword onDone={() => {
+      // Rydd bort parameteren så en refresh ikke sender eleven tilbake hit
+      window.history.replaceState({}, '', window.location.pathname)
+      setResetMode(false)
+    }} />
+  }
 
   if (!session || !profile) {
     return view === 'register'
@@ -98,6 +111,8 @@ function LoginScreen({ onRegister }) {
     setInstallPrompt(null)
   }
 
+  const [forgot, setForgot] = useState(false)
+
   async function submit(e) {
     e.preventDefault()
     setLoading(true); setErr('')
@@ -125,7 +140,12 @@ function LoginScreen({ onRegister }) {
           {loading ? 'Logger inn...' : 'Logg inn'}
         </button>
       </form>
+      <p style={{ ...S.authSwitch, marginBottom: 4 }}>
+        <button style={S.linkBtn} onClick={() => setForgot(true)}>Glemt passordet?</button>
+      </p>
       <p style={S.authSwitch}>Ingen konto? <button style={S.linkBtn} onClick={onRegister}>Registrer deg</button></p>
+
+      {forgot && <ForgotPassword defaultEmail={email} onClose={() => setForgot(false)} />}
 
       {/* Demo-modus */}
       <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 20, paddingTop: 18 }}>
@@ -182,6 +202,101 @@ function LoginScreen({ onRegister }) {
         </p>
         <p style={{ fontSize: 10, color: '#cbd5e1', margin: 0 }}>v{APP_VERSION}</p>
       </div>
+    </div></div>
+  )
+}
+
+// ─── Glemt passord ────────────────────────────────────────────────────────────
+
+function ForgotPassword({ defaultEmail, onClose }) {
+  const [email, setEmail] = useState(defaultEmail || '')
+  const [sent, setSent] = useState(false)
+  const [err, setErr] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function submit(e) {
+    e.preventDefault()
+    if (!email.trim()) return
+    setLoading(true); setErr('')
+    try {
+      await db.requestPasswordReset(email.trim())
+      setSent(true)
+    } catch (e) {
+      setErr('Kunne ikke sende e-post. Prøv igjen, eller si det til læreren din.')
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 18 }}>
+      <div style={{ background: '#fff', borderRadius: 18, padding: '24px 22px', width: '100%', maxWidth: 400 }}>
+        {sent ? (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 38 }}>📧</div>
+            <h2 style={{ fontSize: 17, fontWeight: 800, color: '#1e293b', margin: '10px 0 8px' }}>Sjekk e-posten</h2>
+            <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6, margin: '0 0 16px' }}>
+              Vi har sendt en lenke til <strong>{email}</strong>. Klikk på den for å velge nytt passord.
+              Sjekk søppelpost hvis den ikke kommer.
+            </p>
+            <button onClick={onClose} style={{ ...S.btnPrimary, marginTop: 0 }}>Lukk</button>
+          </div>
+        ) : (
+          <>
+            <h2 style={{ fontSize: 17, fontWeight: 800, color: '#1e293b', margin: '0 0 6px' }}>Glemt passordet?</h2>
+            <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6, margin: '0 0 16px' }}>
+              Skriv inn e-posten du registrerte deg med, så sender vi en lenke for å lage nytt passord.
+            </p>
+            <form onSubmit={submit} style={S.form}>
+              <input style={S.input} type="email" placeholder="E-post" value={email} onChange={e => setEmail(e.target.value)} required autoFocus />
+              {err && <p style={S.error}>{err}</p>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={onClose} style={{ flex: 1, padding: '11px', borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, color: '#64748b' }}>Avbryt</button>
+                <button type="submit" disabled={loading} style={{ ...S.btnPrimary, flex: 2, marginTop: 0, opacity: loading ? 0.7 : 1 }}>
+                  {loading ? 'Sender...' : 'Send lenke'}
+                </button>
+              </div>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Nytt passord ─────────────────────────────────────────────────────────────
+// Vises når eleven kommer tilbake via lenken i e-posten (?nyttpassord=1).
+
+function NewPassword({ onDone }) {
+  const [pw, setPw] = useState('')
+  const [pw2, setPw2] = useState('')
+  const [err, setErr] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function submit(e) {
+    e.preventDefault()
+    if (pw.length < 6) return setErr('Passordet må være minst 6 tegn.')
+    if (pw !== pw2) return setErr('Passordene er ikke like.')
+    setLoading(true); setErr('')
+    try {
+      await db.updatePassword(pw)
+      onDone()
+    } catch (e) {
+      setErr('Lenken kan være utløpt. Be om en ny fra innloggingssiden.')
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div style={S.authBg}><div style={S.authCard}>
+      <div style={S.authLogo}>🔑</div>
+      <h1 style={S.authTitle}>Nytt passord</h1>
+      <p style={S.authSub}>Velg et passord du husker</p>
+      <form onSubmit={submit} style={S.form}>
+        <input style={S.input} type="password" placeholder="Nytt passord (min. 6 tegn)" value={pw} onChange={e => setPw(e.target.value)} required autoFocus />
+        <input style={S.input} type="password" placeholder="Gjenta passordet" value={pw2} onChange={e => setPw2(e.target.value)} required />
+        {err && <p style={S.error}>{err}</p>}
+        <button style={{ ...S.btnPrimary, opacity: loading ? 0.7 : 1 }} type="submit" disabled={loading}>
+          {loading ? 'Lagrer...' : 'Lagre nytt passord'}
+        </button>
+      </form>
     </div></div>
   )
 }
@@ -454,6 +569,19 @@ function StudentApp({ profile, onLogout }) {
   const myPendingTasks = tasks.filter(t => (t.assignedTo || []).includes(profile.id) && !t.done)
   const pendingApproval = tasks.filter(t => t.done && !t.approved_by).length
 
+  // ── Fasestatus ──────────────────────────────────────────────────────────────
+  // En fase er "åpen" når forrige fase er fullt godkjent. Låste faser kan
+  // fortsatt åpnes og leses – de vises bare i grått, uten farge.
+  const phaseState = {}
+  PHASES.forEach((p, i) => {
+    const pt = tasks.filter(t => t.phase === p.id)
+    const approved = pt.filter(t => t.approved_by).length
+    const complete = pt.length > 0 && approved === pt.length
+    const prev = i === 0 ? null : phaseState[PHASES[i - 1].id]
+    phaseState[p.id] = { total: pt.length, approved, complete, unlocked: i === 0 || !!prev?.complete }
+  })
+  const isLocked = id => !phaseState[id]?.unlocked
+
   async function toggleTask(task) {
     const newDone = !task.done
     // Optimistic update
@@ -498,6 +626,41 @@ function StudentApp({ profile, onLogout }) {
     await db.deleteCrmContact(contactId)
   }
 
+  // ── Nytt siden sist ─────────────────────────────────────────────────────────
+  // Realtime gir oss godkjenninger med én gang, men eleven ser dem bare hvis de
+  // tilfeldigvis kikker på riktig rad. Vi sammenligner mot en liste over
+  // oppgave-ID-er eleven allerede har kvittert for, lagret lokalt per bruker.
+  const seenKey = `ub_seen_approved_${profile.id}`
+  const approvedIds = tasks.filter(t => t.approved_by).map(t => t.id)
+
+  const [seenApproved, setSeenApproved] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(seenKey) || '[]')) } catch { return new Set() }
+  })
+  const [firstLoad, setFirstLoad] = useState(true)
+
+  useEffect(() => {
+    // Ved aller første innlogging kvitterer vi stille, ellers får eleven
+    // en banner om 30 oppgaver som ble godkjent for lenge siden.
+    if (firstLoad && approvedIds.length > 0 && seenApproved.size === 0) {
+      localStorage.setItem(seenKey, JSON.stringify(approvedIds))
+      setSeenApproved(new Set(approvedIds))
+    }
+    if (tasks.length > 0) setFirstLoad(false)
+  }, [tasks.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const newlyApproved = tasks.filter(t => t.approved_by && !seenApproved.has(t.id))
+
+  function dismissApproved() {
+    localStorage.setItem(seenKey, JSON.stringify(approvedIds))
+    setSeenApproved(new Set(approvedIds))
+  }
+
+  // Fase som nettopp ble ferdig – vises som feiring, kvitteres separat
+  const justCompleted = PHASES.find(p =>
+    phaseState[p.id].complete &&
+    tasks.some(t => t.phase === p.id && t.approved_by && !seenApproved.has(t.id))
+  )
+
   return (
     <div style={S.appRoot}>
       <header style={S.header}>
@@ -539,22 +702,93 @@ function StudentApp({ profile, onLogout }) {
       {mainTab === 'tasks' && <>
         <nav style={S.nav}>
           {PHASES.map(p => {
-            const pt = tasks.filter(t => t.phase === p.id)
-            const pa = pt.filter(t => t.approved_by).length
+            const st = phaseState[p.id]
             const isA = activePhase === p.id
+            const locked = isLocked(p.id)
+            // Låst fase: fortsatt klikkbar og lesbar, men grå i stedet for farget
+            const accent = locked ? '#94a3b8' : p.color
             return (
               <button key={p.id} onClick={() => { setActivePhase(p.id); setAssignModal(null); setExpandedInfo(null) }}
-                style={{ ...S.tab, background: isA ? p.color : '#f8fafc', color: isA ? '#fff' : '#64748b', borderColor: isA ? p.color : '#e2e8f0', boxShadow: isA ? `0 4px 14px ${p.color}44` : 'none', transform: isA ? 'translateY(-2px)' : 'none' }}>
-                <span style={{ fontSize: 20 }}>{p.emoji}</span>
+                title={locked ? 'Ikke åpnet ennå – du kan lese, men fullfør forrige fase først' : undefined}
+                style={{ ...S.tab,
+                  background: isA ? accent : '#f8fafc',
+                  color: isA ? '#fff' : locked ? '#94a3b8' : '#64748b',
+                  borderColor: isA ? accent : '#e2e8f0',
+                  boxShadow: isA && !locked ? `0 4px 14px ${p.color}44` : 'none',
+                  transform: isA ? 'translateY(-2px)' : 'none',
+                  filter: locked && !isA ? 'grayscale(1)' : 'none',
+                  opacity: locked && !isA ? 0.65 : 1 }}>
+                <span style={{ fontSize: 20 }}>{st.complete ? '✅' : p.emoji}</span>
                 <span style={{ fontSize: 11, fontWeight: 700 }}>{p.label}</span>
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: isA ? 'rgba(255,255,255,0.25)' : p.light, color: isA ? '#fff' : p.color }}>{pa}/{pt.length}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: isA ? 'rgba(255,255,255,0.25)' : locked ? '#f1f5f9' : p.light, color: isA ? '#fff' : accent }}>
+                  {st.approved}/{st.total}
+                </span>
               </button>
             )
           })}
         </nav>
 
         <main style={S.main}>
-          <div style={{ ...S.phaseHeader, background: phase.light, borderColor: phase.border }}>
+
+          {/* Fasefeiring – det viktigste øyeblikket i fasen fortjener å bli markert */}
+          {justCompleted && (
+            <div style={{ background: `linear-gradient(135deg, ${justCompleted.light}, #fff)`, border: `2px solid ${justCompleted.color}`, borderRadius: 16, padding: '18px 20px', marginBottom: 14, textAlign: 'center' }}>
+              <div style={{ fontSize: 34 }}>{justCompleted.emoji}</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: justCompleted.color, marginTop: 6 }}>
+                {justCompleted.label} er i havn!
+              </div>
+              <p style={{ fontSize: 13, color: '#64748b', margin: '6px 0 14px', lineHeight: 1.5 }}>
+                Alle oppgavene er godkjent av læreren. Neste fase er nå åpnet.
+              </p>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                {(() => {
+                  const next = PHASES[PHASES.findIndex(p => p.id === justCompleted.id) + 1]
+                  return next ? (
+                    <button onClick={() => { dismissApproved(); setActivePhase(next.id) }}
+                      style={{ padding: '10px 18px', borderRadius: 99, border: 'none', background: next.color, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      Gå til {next.label} →
+                    </button>
+                  ) : (
+                    <button onClick={dismissApproved}
+                      style={{ padding: '10px 18px', borderRadius: 99, border: 'none', background: justCompleted.color, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      Gratulerer – bedriften er ferdig!
+                    </button>
+                  )
+                })()}
+              </div>
+            </div>
+          )}
+
+          {/* Godkjent siden sist – vises kun når ingen fase nettopp ble ferdig */}
+          {!justCompleted && newlyApproved.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11, background: '#f0fdf4', border: '1.5px solid #86EFAC', borderRadius: 12, padding: '11px 14px', marginBottom: 14 }}>
+              <span style={{ fontSize: 20 }}>✅</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#15803d' }}>
+                  {newlyApproved.length} oppgave{newlyApproved.length === 1 ? '' : 'r'} godkjent
+                </div>
+                <div style={{ fontSize: 11, color: '#16a34a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {newlyApproved.slice(0, 2).map(t => t.text).join(' · ')}
+                  {newlyApproved.length > 2 && ` +${newlyApproved.length - 2} flere`}
+                </div>
+              </div>
+              <button onClick={dismissApproved}
+                style={{ background: 'none', border: 'none', color: '#16a34a', fontSize: 18, cursor: 'pointer', padding: '0 4px', fontFamily: 'inherit' }}>×</button>
+            </div>
+          )}
+
+          {/* Låst fase – forklarer hvorfor den er grå, uten å sperre lesing */}
+          {isLocked(activePhase) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '10px 14px', marginBottom: 14 }}>
+              <span style={{ fontSize: 17 }}>🔒</span>
+              <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+                Denne fasen er ikke åpnet ennå. Du kan lese alt for å se hva som kommer –
+                men fullfør og få godkjent forrige fase først.
+              </div>
+            </div>
+          )}
+
+          <div style={{ ...S.phaseHeader, background: isLocked(activePhase) ? '#f8fafc' : phase.light, borderColor: isLocked(activePhase) ? '#e2e8f0' : phase.border }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ fontSize: 30 }}>{phase.emoji}</span>
               <div>
