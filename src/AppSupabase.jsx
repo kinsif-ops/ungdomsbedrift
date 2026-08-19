@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 import * as db from './db.js'
 import { supabase } from './supabaseClient.js'
 
-const APP_VERSION = '2.0.1'
+const APP_VERSION = '2.1.0'
 import { PHASES, ROLES, CRM_STATUSES, OPPSTART_TASKS, LOST_REASONS } from './constants.js'
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
@@ -1029,11 +1029,19 @@ function TeacherDashboard({ profile, onLogout }) {
   }
   const [loading, setLoading] = useState(true)
   const [allCrm, setAllCrm] = useState([])
+  const [allTasks, setAllTasks] = useState([])
+
+  // Hvor mange oppgaver venter på godkjenning i en gitt bedrift
+  function pendingCount(co) {
+    return allTasks.filter(t => t.company_id === co.id && t.done && !t.approved_by).length
+  }
 
   useEffect(() => {
     db.getCompaniesForTeacher(profile.school).then(async data => {
       setCompanies(data)
-      try { setAllCrm(await db.getCrmForCompanies(data.map(c => c.id))) } catch { setAllCrm([]) }
+      const ids = data.map(c => c.id)
+      try { setAllCrm(await db.getCrmForCompanies(ids)) } catch { setAllCrm([]) }
+      try { setAllTasks(await db.getTasksForCompanies(ids)) } catch { setAllTasks([]) }
       setLoading(false)
     })
   }, [profile.school])
@@ -1121,16 +1129,29 @@ function TeacherDashboard({ profile, onLogout }) {
         {/* Mobil: vis enten liste ELLER detalj */}
         {!selected ? (
           /* ── Bedriftsliste ── */
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, maxWidth: CONTENT_W, width: '100%', margin: '0 auto', padding: '12px 16px 0', boxSizing: 'border-box' }}>
             <div style={S.sidebarTitle}>Bedrifter ({companies.length})</div>
+            <p style={{ fontSize: 12, color: '#94a3b8', padding: '0 16px 12px', margin: 0, lineHeight: 1.5 }}>
+              Trykk på en bedrift for å se oppgavene, godkjenne arbeid og lese ukeloggene.
+            </p>
             {companies.map(co => (
               <button key={co.id} onClick={() => selectCompany(co)}
-                style={{ ...S.companyCard, background: '#fff', color: '#1e293b', width: '100%', textAlign: 'left', display: 'block' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 700, fontSize: 15 }}>{co.name}</span>
-                  <span style={{ fontSize: 11, color: '#94a3b8' }}>{(co.company_members || []).length} elever</span>
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(99,102,241,0.13)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)' }}
+                style={{ ...S.companyCard, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 11, background: '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>🏢</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{co.name}</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                    {(co.company_members || []).length} elever · Kode: {co.code}
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>Kode: {co.code}</div>
+                {pendingCount(co) > 0 && (
+                  <span style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', borderRadius: 99, padding: '3px 10px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    {pendingCount(co)} til godkjenning
+                  </span>
+                )}
+                <span style={{ color: '#6366f1', fontSize: 18, flexShrink: 0 }}>›</span>
               </button>
             ))}
             {companies.length === 0 && (
@@ -1955,7 +1976,7 @@ const S = {
   dashLayout: { display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 },
   sidebar: { width: 280, flexShrink: 0, borderRight: '1px solid #e2e8f0', background: '#fff', overflowY: 'auto', padding: '12px 0' },
   sidebarTitle: { fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, padding: '0 16px 10px' },
-  companyCard: { width: '100%', textAlign: 'left', border: 'none', padding: '12px 16px', cursor: 'pointer', fontFamily: 'inherit', borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' },
+  companyCard: { width: '100%', textAlign: 'left', background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 14, padding: '14px 16px', marginBottom: 8, cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color 0.15s, box-shadow 0.15s', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   dashMain: { flex: 1, overflowY: 'auto', padding: 20 },
   dashCompanyHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
   membersRow: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
