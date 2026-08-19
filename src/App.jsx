@@ -1,15 +1,8 @@
+// Én app, uansett datakilde. Valget mellom Supabase og localStorage skjer i
+// db.js, ikke her – slik at demoen og live-appen alltid kjører samme kode.
 import { lazy, Suspense } from 'react'
 
-const isDemo = new URLSearchParams(window.location.search).get('demo') === '1'
-
-const hasSupabase =
-  !isDemo &&
-  import.meta.env.VITE_SUPABASE_URL &&
-  import.meta.env.VITE_SUPABASE_URL !== 'https://din-prosjekt-id.supabase.co'
-
-const AppComponent = hasSupabase
-  ? lazy(() => import('./AppSupabase.jsx'))
-  : lazy(() => import('./AppLocal.jsx'))
+const AppComponent = lazy(() => import('./AppSupabase.jsx'))
 
 export default function App() {
   return (
