@@ -310,6 +310,14 @@ export async function getTasks(companyId) {
     }))
 }
 
+export async function getTasksForCompanies(companyIds) {
+  if (!companyIds || companyIds.length === 0) return []
+  const db = read()
+  return db.tasks
+    .filter(t => companyIds.includes(t.company_id))
+    .map(t => ({ id: t.id, company_id: t.company_id, done: t.done, approved_by: t.approved_by }))
+}
+
 export async function addTask({ companyId, phase, text, info = null, link = null, isSubmission = false, sortOrder = 999 }) {
   return mutate(db => {
     const t = {
