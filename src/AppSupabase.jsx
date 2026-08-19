@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 import * as db from './db.js'
 import { supabase } from './supabaseClient.js'
 
-const APP_VERSION = '2.0.0'
+const APP_VERSION = '2.0.1'
 import { PHASES, ROLES, CRM_STATUSES, OPPSTART_TASKS, LOST_REASONS } from './constants.js'
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
@@ -54,6 +54,19 @@ export default function App() {
   }
 
   if (loading) return <LoadingScreen />
+
+  // Demobanner – gjør det tydelig at data ikke lagres, og gir vei ut.
+  // Ikke en hook, så den kan trygt ligge etter den tidlige returen over.
+  const demoBar = db.IS_DEMO ? (
+    <div style={{ background: '#1e293b', color: '#fff', padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+      <span>🧪 <strong>Demo</strong> – data lagres kun i denne nettleseren</span>
+      <button onClick={() => { db.resetDemo(); window.location.reload() }}
+        style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 99, padding: '3px 11px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+        Nullstill
+      </button>
+      <a href="/" style={{ color: '#a5b4fc', fontSize: 11, fontWeight: 700 }}>Til ekte innlogging →</a>
+    </div>
+  ) : null
 
   if (resetMode) {
     return <NewPassword onDone={() => {
