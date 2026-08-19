@@ -230,6 +230,18 @@ export async function getTasks(companyId) {
   }))
 }
 
+// Henter oppgaver for flere bedrifter samtidig – brukes av lærerdashbordet for
+// å vise hvor mange godkjenninger som venter i hver bedrift.
+export async function getTasksForCompanies(companyIds) {
+  if (!companyIds || companyIds.length === 0) return []
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('id, company_id, done, approved_by')
+    .in('company_id', companyIds)
+  if (error) throw error
+  return data || []
+}
+
 export async function addTask({ companyId, phase, text, info = null, link = null, isSubmission = false, sortOrder = 999 }) {
   const { data, error } = await supabase
     .from('tasks')
